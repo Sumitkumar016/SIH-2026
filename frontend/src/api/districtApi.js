@@ -1,0 +1,134 @@
+import { mockWorksData, mockCurrentDistrict } from './mockData';
+
+/**
+ * District Authority Data Layer (src/api/districtApi.js)
+ * Scoped strictly to the logged-in district (Patna, Bihar) across ALL MPs who have works there.
+ * Mutates shared mockWorksData in-place for live cross-dashboard demo consistency (e.g. Auditor dashboard).
+ */
+
+export const districtApi = {
+  // Get District Profile Context
+  async getDistrictProfile(districtId = 'DIST-BR-PATNA') {
+    return { ...mockCurrentDistrict };
+  },
+
+  // Get District Overview (KPIs, MP-wise breakdown table)
+  async getDistrictOverview(districtId = 'DIST-BR-PATNA') {
+    const districtInfo = mockCurrentDistrict;
+    const districtWorks = mockWorksData.filter(
+      (w) => w.district.toLowerCase() === districtInfo.districtName.toLowerCase()
+    );
+
+    // District-wide summary KPIs
+    const totalWorks = districtWorks.length;
+    const sanctionedWorks = districtWorks.filter(w => w.status !== 'Draft' && w.status !== 'Recommended');
+    const completedWorks = districtWorks.filter(w => w.status === 'Completed');
+    const flaggedWorks = districtWorks.filter(
+      w => w.riskLevel === 'High' || w.riskLevel === 'Medium' || (w.riskScore && w.riskScore >= 40)
+    );
+
+    const totalSanctionedLakhs = districtWorks.reduce((acc, w) => acc + (w.sanctionedAmount || 0), 0);
+    const totalExpenditureLakhs = districtWorks.reduce((acc, w) => acc + (w.expenditure || 0), 0);
+
+    // Group works by MP
+    const mpMap = new Map();
+    districtWorks.forEach(w => {
+      if (!mpMap.has(w.mpName)) {
+        mpMap.set(w.mpName, {
+          mpName: w.mpName,
+          constituency: w.constituency || 'Constituency',
+          works: [],
+          totalWorks: 0,
+          flaggedCount: 0,
+          completedCount: 0,
+          totalSanctionedLakhs: 0,
+          totalExpenditureLakhs: 0,
+        });
+      }
+      const entry = mpMap.get(w.mpName);
+      entry.works.push(w);
+      entry.totalWorks += 1;
+      if (w.status === 'Completed') entry.completedCount += 1;
+      if (w.riskLevel === 'High' || w.riskLevel === 'Medium' || (w.riskScore && w.riskScore >= 40)) {
+        entry.flaggedCount += 1;
+      }
+      entry.totalSanctionedLakhs += (w.sanctionedAmount || 0);
+      entry.totalExpenditureLakhs += (w.expenditure || 0);
+    });
+
+    const mpBreakdown = Array.from(mpMap.values()).map(m => ({
+      ...m,
+      completionRate: Math.round((m.completedCount / m.totalWorks) * 100),
+      totalSanctionedCr: Math.round((m.totalSanctionedLakhs / 100) * 100) / 100,
+    }));
+
+    return {
+      district: districtInfo,
+      kpis: {
+        totalWorks,
+        totalSanctionedCount: sanctionedWorks.length,
+        totalCompletedCount: completedWorks.length,
+        totalFlaggedCount: flaggedWorks.length,
+        totalSanctionedCr: Math.round((totalSanctionedLakhs / 100) * 100) / 100,
+        totalExpenditureCr: Math.round((totalExpenditureLakhs / 100) * 100) / 100,
+        completionRate: Math.round((completedWorks.length / totalWorks) * 1000) / 10,
+      },
+      mpBreakdown,
+    };
+  },
+
+  // Get Verification Queue: ONLY completed works where photo evidence is missing
+  async getVerificationQueue(districtId = 'DIST-BR-PATNA') {
+    const districtInfo = mockCurrentDistrict;
+    const missingEvidenceWorks = mockWorksData.filter(
+      (w) =>
+        w.district.toLowerCase() === districtInfo.districtName.toLowerCase() &&
+        w.status === 'Completed' &&
+        w.photoEvidenceStatus === 'missing'
+    );
+
+    return {
+      district: districtInfo,
+      total: missingEvidenceWorks.length,
+      data: [...missingEvidenceWorks],
+    };
+  },
+
+  // Action 1: Mark as Verified (evidence confirmed, removes from queue)
+  async markWorkVerified(workId) {
+    const target = mockWorksData.find(w => w.workId === workId);
+    if (target) {
+      target.photoEvidenceStatus = 'verified';
+      target.verifiedDate = new Date().toISOString().slice(0, 10);
+    }
+    return { success: true, workId };
+  },
+
+  // Action 2: Request Evidence (sends notice/reminder)
+  async requestEvidence(workId, note = 'Formal notice sent to implementing agency') {
+    const target = mockWorksData.find(w => w.workId === workId);
+    if (target) {
+      target.evidenceReminderSent = true;
+      target.evidenceReminderDate = new Date().toISOString().slice(0, 10);
+      target.evidenceReminderNote = note;
+    }
+    return { success: true, workId, note };
+  },
+
+  // Action 3: Escalate to Investigation (updates shared mock data object for Auditor dashboard)
+  async escalateWorkToInvestigation(workId, note = 'Evidence not provided after multiple statutory reminder periods') {
+    const target = mockWorksData.find(w => w.workId.toLowerCase() === workId.toLowerCase());
+    if (target) {
+      target.escalationSource = 'district';
+      target.escalationNote = note;
+      target.escalatedDate = new Date().toISOString().slice(0, 10);
+      target.status = 'Under Investigation';
+      target.caseStatus = 'Escalated';
+      if (target.riskScore < 75) {
+        target.riskScore = Math.max(target.riskScore, 75);
+        target.riskLevel = 'High';
+      }
+    }
+    return { success: true, workId, target };
+  },
+};
