@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useOutletContext, Link } from 'react-router-dom';
+import { useOutletContext, Link, useNavigate } from 'react-router-dom';
 import {
   Activity,
   AlertOctagon,
@@ -40,10 +40,16 @@ import { ministryApi } from '../api/ministryApi';
  */
 export default function NationalOverviewPage() {
   const { onOpenWorkDetail } = useOutletContext();
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [leaderboardData, setLeaderboardData] = useState(null);
-  const [selectedStateFilter, setSelectedStateFilter] = useState(null);
   const [viewMode, setViewMode] = useState('density'); // 'density' or 'bar'
+
+  // Navigate to Flagged Cases page with a pre-applied state filter
+  const handleStateClick = (stateName) => {
+    if (!stateName) return;
+    navigate(`/ministry/flagged?state=${encodeURIComponent(stateName)}`);
+  };
 
   useEffect(() => {
     async function loadData() {
@@ -79,7 +85,7 @@ export default function NationalOverviewPage() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      
+
       {/* Top Banner: National Command Center Status */}
       <div className="bg-[#F7F9F9] border border-[#EFF3F4] rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -223,21 +229,19 @@ export default function NationalOverviewPage() {
           <div className="flex items-center gap-1 bg-[#F7F9F9] p-1 rounded-xl border border-[#EFF3F4] self-start sm:self-auto">
             <button
               onClick={() => setViewMode('density')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
-                viewMode === 'density'
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${viewMode === 'density'
                   ? 'bg-white text-[#0F1419] shadow-xs'
                   : 'text-slate-500 hover:text-[#0F1419]'
-              }`}
+                }`}
             >
               State Risk Matrix
             </button>
             <button
               onClick={() => setViewMode('bar')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
-                viewMode === 'bar'
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${viewMode === 'bar'
                   ? 'bg-white text-[#0F1419] shadow-xs'
                   : 'text-slate-500 hover:text-[#0F1419]'
-              }`}
+                }`}
             >
               Flagged Volume Chart
             </button>
@@ -253,13 +257,14 @@ export default function NationalOverviewPage() {
               const cardBg = isHigh
                 ? 'border-rose-200 bg-rose-50/20 hover:bg-rose-50/40'
                 : isMed
-                ? 'border-amber-200 bg-amber-50/20 hover:bg-amber-50/40'
-                : 'border-[#EFF3F4] bg-[#F7F9F9] hover:bg-slate-100/70';
+                  ? 'border-amber-200 bg-amber-50/20 hover:bg-amber-50/40'
+                  : 'border-[#EFF3F4] bg-[#F7F9F9] hover:bg-slate-100/70';
 
               return (
                 <div
                   key={st.code}
-                  onClick={() => setSelectedStateFilter(st.state)}
+                  onClick={() => handleStateClick(st.state)}
+                  title={`Click to view ${st.state}'s flagged cases`}
                   className={`p-3.5 rounded-xl border transition-all cursor-pointer ${cardBg} group`}
                 >
                   <div className="flex items-center justify-between mb-1.5">
@@ -282,9 +287,8 @@ export default function NationalOverviewPage() {
                     </div>
 
                     <div className="text-right">
-                      <span className={`text-xs font-bold font-mono ${
-                        isHigh ? 'text-rose-600' : isMed ? 'text-amber-600' : 'text-emerald-600'
-                      }`}>
+                      <span className={`text-xs font-bold font-mono ${isHigh ? 'text-rose-600' : isMed ? 'text-amber-600' : 'text-emerald-600'
+                        }`}>
                         Index {st.riskIndex}
                       </span>
                       <span className="text-[10px] text-slate-400 block">
@@ -296,9 +300,8 @@ export default function NationalOverviewPage() {
                   {/* Micro Progress Bar */}
                   <div className="w-full bg-slate-200/70 rounded-full h-1 mt-2.5 overflow-hidden">
                     <div
-                      className={`h-1 rounded-full ${
-                        isHigh ? 'bg-rose-500' : isMed ? 'bg-amber-500' : 'bg-emerald-500'
-                      }`}
+                      className={`h-1 rounded-full ${isHigh ? 'bg-rose-500' : isMed ? 'bg-amber-500' : 'bg-emerald-500'
+                        }`}
                       style={{ width: `${Math.min(100, (st.flaggedCount / 350) * 100)}%` }}
                     />
                   </div>
@@ -352,10 +355,10 @@ export default function NationalOverviewPage() {
 
       {/* LOWER GRID: RISK DISTRIBUTION PIE + STATES REQUIRING ATTENTION + RECENT HIGH-RISK ALERTS */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
+
         {/* Left Column (5 cols): Risk Distribution & States Requiring Attention */}
         <div className="lg:col-span-5 space-y-6">
-          
+
           {/* Risk Distribution Card */}
           <div className="bg-white border border-[#EFF3F4] rounded-2xl p-5 shadow-subtle">
             <div className="flex items-center justify-between mb-3">

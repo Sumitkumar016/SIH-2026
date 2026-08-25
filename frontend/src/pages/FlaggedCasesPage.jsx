@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useSearchParams } from 'react-router-dom';
 import {
   Download,
   AlertTriangle,
@@ -21,13 +21,15 @@ import { mpladsService } from '../api/mpladsService';
  */
 export default function FlaggedCasesPage() {
   const { onOpenWorkDetail } = useOutletContext();
+  const [searchParams] = useSearchParams();
   const [works, setWorks] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Search & Filter State
+  // Initialise state filter from ?state= query param if present (e.g. navigated from state risk matrix)
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState({
-    state: 'All',
+    state: searchParams.get('state') || 'All',
     category: 'All',
     riskLevel: 'All',
     status: 'All',
