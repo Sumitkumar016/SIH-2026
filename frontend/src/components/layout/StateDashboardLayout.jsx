@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import TopNavbar from '../common/TopNavbar';
 import WorkDetailModal from '../common/WorkDetailModal';
 import { stateApi } from '../../api/stateApi';
+import { useAuth } from '../../context/AuthContext';
 
 /**
  * StateDashboardLayout Component
@@ -10,17 +11,18 @@ import { stateApi } from '../../api/stateApi';
  * and manages the shared WorkDetailModal when drill-down works are inspected.
  */
 export default function StateDashboardLayout() {
+  const { user } = useAuth();
   const [stateProfile, setStateProfile] = useState(null);
   const [selectedWork, setSelectedWork] = useState(null);
   const [isWorkModalOpen, setIsWorkModalOpen] = useState(false);
 
   useEffect(() => {
     async function loadProfile() {
-      const p = await stateApi.getStateProfile();
+      const p = await stateApi.getStateProfile(user?.stateId);
       setStateProfile(p);
     }
     loadProfile();
-  }, []);
+  }, [user]);
 
   const handleOpenWorkDetail = (work) => {
     setSelectedWork(work);

@@ -8,12 +8,26 @@ import { mockCurrentState, mockBiharDistrictsData, mockWorksData } from './mockD
 export const stateApi = {
   // Get State Profile Context
   async getStateProfile(stateId = 'STATE-BR') {
+    if (!stateId || stateId === 'STATE-BR' || stateId === 'STATE001') {
+      return { ...mockCurrentState };
+    }
+    const fromWorks = mockWorksData.find(w => w.stateId === stateId || w.state.toLowerCase().includes(stateId.toLowerCase()));
+    if (fromWorks) {
+      return {
+        stateId,
+        stateName: fromWorks.state,
+        nodalDepartment: `Planning & Development Department, Govt of ${fromWorks.state}`,
+        headquarters: `State Secretariat, ${fromWorks.state}`,
+        totalDistricts: 38,
+        nodalSecretary: 'State Nodal Secretary (Principal Secretary)',
+      };
+    }
     return { ...mockCurrentState };
   },
 
   // Get State Overview rollup
   async getStateOverview(stateId = 'STATE-BR') {
-    const stateInfo = mockCurrentState;
+    const stateInfo = await this.getStateProfile(stateId);
     const districts = mockBiharDistrictsData.map(d => ({
       ...d,
       completionRate: Math.round((d.completed / d.totalWorks) * 100),

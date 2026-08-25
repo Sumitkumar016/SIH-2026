@@ -30,7 +30,9 @@ import {
   CartesianGrid,
 } from 'recharts';
 import RiskBadge from '../components/common/RiskBadge';
+import MpLeaderboardWidget from '../components/common/MpLeaderboardWidget';
 import { mpladsService } from '../api/mpladsService';
+import { ministryApi } from '../api/ministryApi';
 
 /**
  * PAGE 1: National Overview (Home / Command Center)
@@ -39,13 +41,18 @@ import { mpladsService } from '../api/mpladsService';
 export default function NationalOverviewPage() {
   const { onOpenWorkDetail } = useOutletContext();
   const [data, setData] = useState(null);
+  const [leaderboardData, setLeaderboardData] = useState(null);
   const [selectedStateFilter, setSelectedStateFilter] = useState(null);
   const [viewMode, setViewMode] = useState('density'); // 'density' or 'bar'
 
   useEffect(() => {
     async function loadData() {
-      const res = await mpladsService.getNationalOverviewMetrics();
-      setData(res);
+      const [overviewRes, lbRes] = await Promise.all([
+        mpladsService.getNationalOverviewMetrics(),
+        (ministryApi?.getMpLeaderboard || mpladsService.getMpLeaderboard)(),
+      ]);
+      setData(overviewRes);
+      setLeaderboardData(lbRes);
     }
     loadData();
   }, []);
@@ -339,6 +346,9 @@ export default function NationalOverviewPage() {
           </div>
         )}
       </div>
+
+      {/* MP PERFORMANCE LEADERBOARD (RANKED BY FUND UTILIZATION) */}
+      <MpLeaderboardWidget leaderboardData={leaderboardData} />
 
       {/* LOWER GRID: RISK DISTRIBUTION PIE + STATES REQUIRING ATTENTION + RECENT HIGH-RISK ALERTS */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

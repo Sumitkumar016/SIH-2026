@@ -18,8 +18,10 @@ import {
   Landmark,
   Search,
   Fingerprint,
+  Award,
 } from 'lucide-react';
 import AlertBellIcon from './AlertBellIcon';
+import { useAuth } from '../../context/AuthContext';
 
 /**
  * TopNavbar Component
@@ -36,24 +38,27 @@ export default function TopNavbar({
 }) {
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
   const navigate = useNavigate();
+  const { user, logout, loginAsRole } = useAuth();
 
-  const isMpRole = role === 'MP' || role === 'Member of Parliament (MP)';
-  const isDistrictRole = role === 'District' || role === 'District Authority' || role === 'District Nodal Officer (DNO)';
-  const isStateRole = role === 'State' || role === 'State Nodal Authority';
-  const isAuditorRole = role === 'Auditor' || role === 'Independent Auditor' || role === 'Investigator';
+  const isMpRole = role === 'MP' || role === 'Member of Parliament (MP)' || user?.role === 'mp';
+  const isDistrictRole = role === 'District' || role === 'District Authority' || role === 'District Nodal Officer (DNO)' || user?.role === 'district';
+  const isStateRole = role === 'State' || role === 'State Nodal Authority' || user?.role === 'state';
+  const isAuditorRole = role === 'Auditor' || role === 'Independent Auditor' || role === 'Investigator' || user?.role === 'auditor';
 
-  let currentRoleLabel = 'Ministry (National View)';
-  if (isAuditorRole) currentRoleLabel = 'Independent Auditor';
-  if (isStateRole) currentRoleLabel = 'State Nodal Authority';
-  if (isMpRole) currentRoleLabel = 'Member of Parliament (MP)';
-  if (isDistrictRole) currentRoleLabel = 'District Authority';
+  let currentRoleLabel = user?.roleLabel || 'Ministry (National View)';
+  if (!user) {
+    if (isAuditorRole) currentRoleLabel = 'Independent Auditor';
+    if (isStateRole) currentRoleLabel = 'State Nodal Authority';
+    if (isMpRole) currentRoleLabel = 'Member of Parliament (MP)';
+    if (isDistrictRole) currentRoleLabel = 'District Authority';
+  }
 
   const roles = [
-    { name: 'Ministry (National View)', path: '/ministry/overview', desc: 'Central MoSPI oversight & macro analytics' },
-    { name: 'State Nodal Authority', path: '/state/overview', desc: 'State-wide district rollup & monitoring' },
-    { name: 'Member of Parliament (MP)', path: '/mp/overview', desc: 'Constituency recommendations & progress' },
-    { name: 'District Authority', path: '/district/overview', desc: 'District level tenders, ground verification & escalation' },
-    { name: 'Independent Auditor', path: '/auditor/queue', desc: 'Forensic investigations & vendor cross-referencing' },
+    { roleKey: 'ministry', name: 'Ministry (National View)', path: '/ministry/overview', desc: 'Central MoSPI oversight & macro analytics' },
+    { roleKey: 'state', name: 'State Nodal Authority', path: '/state/overview', desc: 'State-wide district rollup & monitoring' },
+    { roleKey: 'mp', name: 'Member of Parliament (MP)', path: '/mp/overview', desc: 'Constituency recommendations & progress' },
+    { roleKey: 'district', name: 'District Authority', path: '/district/overview', desc: 'District level tenders, ground verification & escalation' },
+    { roleKey: 'auditor', name: 'Independent Auditor', path: '/auditor/queue', desc: 'Forensic investigations & vendor cross-referencing' },
   ];
 
   // Ministry Navigation Tabs
@@ -70,6 +75,12 @@ export default function TopNavbar({
       icon: AlertTriangle,
       badge: alerts.length > 0 ? `${alerts.length}` : null,
       badgeColor: 'bg-rose-100 text-rose-700',
+    },
+    {
+      to: '/ministry/mp-performance',
+      label: 'MP Performance',
+      icon: Award,
+      badge: null,
     },
     {
       to: '/ministry/trends',
@@ -155,11 +166,18 @@ export default function TopNavbar({
 
   const handleSwitchRole = (targetRole) => {
     setRoleDropdownOpen(false);
+    if (targetRole.roleKey) {
+      loginAsRole(targetRole.roleKey);
+    }
     if (targetRole.path) {
       navigate(targetRole.path);
-    } else {
-      alert(`Switched context to ${targetRole.name}. (Shared components & theme are reusable across all role dashboards)`);
     }
+  };
+
+  const handleLogout = () => {
+    setRoleDropdownOpen(false);
+    logout();
+    navigate('/login');
   };
 
   return (
@@ -227,21 +245,32 @@ export default function TopNavbar({
               {roleDropdownOpen && (
                 <div className="absolute right-0 mt-2 w-72 bg-white border border-[#EFF3F4] rounded-2xl shadow-hover z-50 overflow-hidden animate-in fade-in duration-150">
                   <div className="p-3 bg-[#F7F9F9] border-b border-[#EFF3F4]">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                      Switch Role Portal
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                      Logged In Session
                     </span>
+                    <div className="text-xs font-bold text-[#0F1419] truncate mt-0.5">
+                      {user?.name || currentRoleLabel}
+                    </div>
+                    <div className="text-[11px] text-slate-500 font-mono truncate">
+                      {user?.email || 'session@mplads.gov.in'}
+                    </div>
                   </div>
                   <div className="p-1.5">
+                    <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      Switch Role Portal
+                    </div>
                     {roles.map((r) => {
-                      const isSelected = isAuditorRole
-                        ? r.name.includes('Auditor')
-                        : isStateRole
-                        ? r.name.includes('State')
-                        : isDistrictRole
-                        ? r.name.includes('District')
-                        : isMpRole
-                        ? r.name.includes('Member of Parliament')
-                        : r.name.includes('Ministry');
+                      const isSelected = (user?.role === r.roleKey) || (!user && (
+                        isAuditorRole
+                          ? r.roleKey === 'auditor'
+                          : isStateRole
+                          ? r.roleKey === 'state'
+                          : isDistrictRole
+                          ? r.roleKey === 'district'
+                          : isMpRole
+                          ? r.roleKey === 'mp'
+                          : r.roleKey === 'ministry'
+                      ));
 
                       return (
                         <button
@@ -264,7 +293,7 @@ export default function TopNavbar({
                   </div>
                   <div className="p-2 bg-[#F7F9F9] border-t border-[#EFF3F4]">
                     <button
-                      onClick={() => alert('Logout action performed.')}
+                      onClick={handleLogout}
                       className="w-full py-1.5 px-3 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-lg transition-colors flex items-center justify-center gap-1.5"
                     >
                       <LogOut className="w-3.5 h-3.5" />

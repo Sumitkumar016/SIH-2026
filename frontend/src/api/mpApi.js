@@ -12,12 +12,28 @@ const justificationStore = new Map();
 export const mpApi = {
   // Get MP profile / identity
   async getMpProfile(mpId = 'MP-BR-0412') {
+    if (!mpId || mpId === 'MP-BR-0412' || mpId === 'MP001') {
+      return { ...mockCurrentMp };
+    }
+    const fromWorks = mockWorksData.find(w => w.mpId === mpId || w.mpName.toLowerCase().includes(mpId.toLowerCase()));
+    if (fromWorks) {
+      return {
+        mpId,
+        mpName: fromWorks.mpName,
+        constituency: fromWorks.constituency || 'Constituency',
+        state: fromWorks.state || 'India',
+        district: fromWorks.district,
+        term: '17th / 18th Lok Sabha',
+        house: 'Lok Sabha',
+        annualEntitlementCr: 5.0,
+      };
+    }
     return { ...mockCurrentMp };
   },
 
   // Get My Constituency Overview (KPIs, utilization, and only this MP's flagged works)
   async getMyConstituencyOverview(mpId = 'MP-BR-0412') {
-    const mpInfo = mockCurrentMp;
+    const mpInfo = await this.getMpProfile(mpId);
     // Filter works for this MP
     const mpWorks = mockWorksData.filter(
       (w) => w.mpName.toLowerCase() === mpInfo.mpName.toLowerCase()

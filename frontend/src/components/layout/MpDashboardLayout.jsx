@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import TopNavbar from '../common/TopNavbar';
 import WorkDetailModal from '../common/WorkDetailModal';
 import { mpApi } from '../../api/mpApi';
+import { useAuth } from '../../context/AuthContext';
 
 /**
  * MpDashboardLayout Component
@@ -10,18 +11,19 @@ import { mpApi } from '../../api/mpApi';
  * and manages the shared WorkDetailModal with `allowJustification={true}`.
  */
 export default function MpDashboardLayout() {
+  const { user } = useAuth();
   const [mpOverview, setMpOverview] = useState(null);
   const [selectedWork, setSelectedWork] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const loadData = async () => {
-    const data = await mpApi.getMyConstituencyOverview();
+    const data = await mpApi.getMyConstituencyOverview(user?.mpId);
     setMpOverview(data);
   };
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [user]);
 
   const handleOpenWorkDetail = (work) => {
     setSelectedWork(work);

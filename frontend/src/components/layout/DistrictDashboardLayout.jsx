@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import TopNavbar from '../common/TopNavbar';
 import WorkDetailModal from '../common/WorkDetailModal';
 import { districtApi } from '../../api/districtApi';
+import { useAuth } from '../../context/AuthContext';
 
 /**
  * DistrictDashboardLayout Component
@@ -10,21 +11,22 @@ import { districtApi } from '../../api/districtApi';
  * and manages the shared WorkDetailModal.
  */
 export default function DistrictDashboardLayout() {
+  const { user } = useAuth();
   const [districtProfile, setDistrictProfile] = useState(null);
   const [queueCount, setQueueCount] = useState(0);
   const [selectedWork, setSelectedWork] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const loadData = async () => {
-    const profile = await districtApi.getDistrictProfile();
+    const profile = await districtApi.getDistrictProfile(user?.districtId);
     setDistrictProfile(profile);
-    const queue = await districtApi.getVerificationQueue();
+    const queue = await districtApi.getVerificationQueue(user?.districtId);
     setQueueCount(queue.total || 0);
   };
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [user]);
 
   const handleOpenWorkDetail = (work) => {
     setSelectedWork(work);

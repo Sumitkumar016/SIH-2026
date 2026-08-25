@@ -9,12 +9,27 @@ import { mockWorksData, mockCurrentDistrict } from './mockData';
 export const districtApi = {
   // Get District Profile Context
   async getDistrictProfile(districtId = 'DIST-BR-PATNA') {
+    if (!districtId || districtId === 'DIST-BR-PATNA' || districtId === 'DIST001') {
+      return { ...mockCurrentDistrict };
+    }
+    const fromWorks = mockWorksData.find(w => w.districtId === districtId || w.district.toLowerCase().includes(districtId.toLowerCase()));
+    if (fromWorks) {
+      return {
+        districtId,
+        districtName: fromWorks.district,
+        state: fromWorks.state,
+        nodalOfficer: 'District Nodal Officer (DNO)',
+        headquarters: `${fromWorks.district} Collectorate`,
+        totalActiveWorks: 18,
+        totalSanctionedCr: 14.8,
+      };
+    }
     return { ...mockCurrentDistrict };
   },
 
   // Get District Overview (KPIs, MP-wise breakdown table)
   async getDistrictOverview(districtId = 'DIST-BR-PATNA') {
-    const districtInfo = mockCurrentDistrict;
+    const districtInfo = await this.getDistrictProfile(districtId);
     const districtWorks = mockWorksData.filter(
       (w) => w.district.toLowerCase() === districtInfo.districtName.toLowerCase()
     );
