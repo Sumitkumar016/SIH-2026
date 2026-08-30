@@ -1,0 +1,15 @@
+/// 9. asset_creation: Physical assets created with geotagging & verification
+model AssetCreation {
+  asset_id            Int                @id @default(autoincrement()) @map("asset_id")
+  work_id             String             @map("work_id") @db.VarChar(100)
+  asset_type          String?            @map("asset_type") @db.VarChar(100)
+  geotag_lat          Decimal?           @map("geotag_lat") @db.Decimal(10, 8)
+  geotag_long         Decimal?           @map("geotag_long") @db.Decimal(11, 8)
+  verification_status VerificationStatus @default(unverified) @map("verification_status")
+
+  // Relationships
+  work                Work               @relation(fields: [work_id], references: [work_id], onDelete: Cascade)
+
+  @@index([work_id])
+  @@map("asset_creation")
+}

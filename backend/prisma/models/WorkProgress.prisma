@@ -1,0 +1,17 @@
+/// 8. work_progress: Historical physical progress tracking records per work (1-to-N)
+model WorkProgress {
+  progress_id           Int            @id @default(autoincrement()) @map("progress_id")
+  work_id               String         @map("work_id") @db.VarChar(100)
+  report_date           DateTime       @map("report_date") @db.Date
+  physical_progress_pct Decimal?       @map("physical_progress_pct") @db.Decimal(5, 2)
+  expected_progress_pct Decimal?       @map("expected_progress_pct") @db.Decimal(5, 2)
+  evidence_status       EvidenceStatus @default(missing) @map("evidence_status")
+  photo_url             String?        @map("photo_url") @db.VarChar(500)
+  reported_by           String?        @map("reported_by") @db.VarChar(150)
+
+  // Relationships
+  work                  Work           @relation(fields: [work_id], references: [work_id], onDelete: Cascade)
+
+  @@index([work_id])
+  @@map("work_progress")
+}

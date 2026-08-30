@@ -1,0 +1,81 @@
+// Shared Enums for MPLADS Platform
+
+enum House {
+  LOK_SABHA   @map("Lok Sabha")
+  RAJYA_SABHA @map("Rajya Sabha")
+
+  @@map("house_type")
+}
+
+enum Role {
+  ministry
+  mp
+  district
+  state
+  auditor
+
+  @@map("user_role")
+}
+
+enum WorkStatus {
+  Recommended
+  Sanctioned
+  Ongoing
+  Completed
+
+  @@map("work_status")
+}
+
+enum EvidenceStatus {
+  present
+  missing
+
+  @@map("evidence_status")
+}
+
+enum VerificationStatus {
+  verified
+  unverified
+  disputed
+
+  @@map("verification_status")
+}
+
+enum RiskLevel {
+  Low
+  Medium
+  High
+
+  @@map("risk_level")
+}
+
+/// Escalation Source:
+/// - 'ai': AI-generated risk flag / prioritization record (NOT an automatic investigation trigger)
+/// - 'ministry': Human referral initiated by an authorized Ministry user
+/// - 'state': Human referral initiated by an authorized State user
+/// - 'district': Human referral initiated by an authorized District user
+/// Only human-authorized referrals ('ministry', 'state', 'district') place a case into the Auditor/Investigator queue.
+enum EscalationSource {
+  ai
+  ministry
+  state
+  district
+
+  @@map("escalation_source_type")
+}
+
+enum AuditorConclusion {
+  CONFIRMED_ANOMALY     @map("Confirmed Anomaly")
+  FALSE_POSITIVE        @map("False Positive")
+  REQUIRES_FIELD_ACTION @map("Requires Field Action")
+
+  @@map("auditor_conclusion")
+}
+
+enum AuditorReportStatus {
+  UNDER_REVIEW @map("Under Review")
+  RESOLVED     @map("Resolved")
+  ESCALATED    @map("Escalated")
+
+  @@map("auditor_report_status")
+}

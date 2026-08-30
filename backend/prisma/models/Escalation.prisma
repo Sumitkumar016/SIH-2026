@@ -1,0 +1,19 @@
+/// 12. escalations: AI risk flags and human-initiated investigation referrals (1-to-N)
+/// Note:
+/// - escalation_source = 'ai': AI-generated flag / prioritization. Does NOT auto-initiate investigation.
+/// - escalation_source = 'ministry' | 'state' | 'district': Human review referral into Auditor/Investigator queue.
+model Escalation {
+  escalation_id     Int              @id @default(autoincrement()) @map("escalation_id")
+  work_id           String           @map("work_id") @db.VarChar(100)
+  escalation_source EscalationSource @map("escalation_source")
+  escalation_note   String?          @map("escalation_note") @db.Text
+  escalated_by      String?          @map("escalated_by") @db.VarChar(150)
+  escalated_date    DateTime?        @map("escalated_date") @db.Date
+
+  // Relationships
+  work              Work             @relation(fields: [work_id], references: [work_id], onDelete: Cascade)
+
+  @@index([work_id])
+  @@index([escalation_source])
+  @@map("escalations")
+}

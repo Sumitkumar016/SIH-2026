@@ -1,0 +1,22 @@
+/// 10. risk_scores: Latest computed AI risk snapshot per work (1-to-1)
+model RiskScore {
+  risk_id                  Int        @id @default(autoincrement()) @map("risk_id")
+  work_id                  String     @unique @map("work_id") @db.VarChar(100)
+  risk_score               Decimal?   @map("risk_score") @db.Decimal(5, 2)
+  risk_level               RiskLevel? @map("risk_level")
+  cost_overrun_pct         Decimal    @default(0) @map("cost_overrun_pct") @db.Decimal(5, 2)
+  delay_slippage_pct       Decimal    @default(0) @map("delay_slippage_pct") @db.Decimal(5, 2)
+  duplicate_similarity_pct Decimal    @default(0) @map("duplicate_similarity_pct") @db.Decimal(5, 2)
+  vendor_anomaly_pct       Decimal    @default(0) @map("vendor_anomaly_pct") @db.Decimal(5, 2)
+  progress_mismatch_pct    Decimal    @default(0) @map("progress_mismatch_pct") @db.Decimal(5, 2)
+  flag_reason              String?    @map("flag_reason") @db.VarChar(255)
+  ai_diagnostic_summary    String?    @map("ai_diagnostic_summary") @db.Text
+  calculated_at            DateTime   @default(now()) @map("calculated_at") @db.Timestamptz(6)
+
+  // Relationships
+  work                     Work       @relation(fields: [work_id], references: [work_id], onDelete: Cascade)
+
+  @@index([work_id])
+  @@index([risk_level])
+  @@map("risk_scores")
+}

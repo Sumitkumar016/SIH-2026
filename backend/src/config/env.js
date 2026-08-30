@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 // Load variables from the .env file into process.env before reading them.
 dotenv.config();
 
-const requiredEnvVariables = ["MONGO_URI", "JWT_SECRET"];
+const requiredEnvVariables = ["DATABASE_URL", "JWT_SECRET"];
 
 const missingEnvVariables = requiredEnvVariables.filter((key) => {
   const value = process.env[key];
@@ -30,7 +30,7 @@ const parsePort = (value) => {
 const config = Object.freeze({
   nodeEnv: process.env.NODE_ENV || "development",
   port: parsePort(process.env.PORT),
-  mongoUri: process.env.MONGO_URI.trim(),
+  databaseUrl: process.env.DATABASE_URL.trim(),
   jwtSecret: process.env.JWT_SECRET.trim(),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "7d",
   corsOrigin: process.env.CORS_ORIGIN || "*",

@@ -1,0 +1,15 @@
+/// 2. districts: Administrative districts mapped to states
+model District {
+  district_id   Int      @id @default(autoincrement()) @map("district_id")
+  district_name String   @map("district_name") @db.VarChar(100)
+  state_id      Int      @map("state_id")
+
+  // Relationships
+  state         State    @relation(fields: [state_id], references: [state_id], onDelete: Restrict)
+  mps           Mp[]
+  users         User[]
+  works         Work[]
+
+  @@index([state_id])
+  @@map("districts")
+}

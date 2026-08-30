@@ -1,0 +1,14 @@
+/// 1. states: Administrative states/UTs
+model State {
+  state_id   Int        @id @default(autoincrement()) @map("state_id")
+  state_name String     @unique @map("state_name") @db.VarChar(100)
+  region     String?    @map("region") @db.VarChar(50)
+
+  // Relationships
+  districts  District[]
+  mps        Mp[]
+  users      User[]
+  works      Work[]
+
+  @@map("states")
+}

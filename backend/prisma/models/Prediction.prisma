@@ -1,0 +1,17 @@
+/// 11. predictions: Latest AI forecast snapshot per work (1-to-1)
+model Prediction {
+  prediction_id            Int      @id @default(autoincrement()) @map("prediction_id")
+  work_id                  String   @unique @map("work_id") @db.VarChar(100)
+  current_risk_score       Decimal? @map("current_risk_score") @db.Decimal(5, 2)
+  predicted_risk_score_30d Decimal? @map("predicted_risk_score_30d") @db.Decimal(5, 2)
+  risk_delta_pct           Decimal? @map("risk_delta_pct") @db.Decimal(5, 2)
+  warning_signal           String?  @map("warning_signal") @db.VarChar(255)
+  days_until_threshold     Int?     @map("days_until_threshold")
+  predicted_at             DateTime @default(now()) @map("predicted_at") @db.Timestamptz(6)
+
+  // Relationships
+  work                     Work     @relation(fields: [work_id], references: [work_id], onDelete: Cascade)
+
+  @@index([work_id])
+  @@map("predictions")
+}

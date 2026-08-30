@@ -2,7 +2,7 @@ import app from "./app.js";
 import connectDB from "./config/db.js";
 import config from "./config/env.js";
 
-// Start the API only after MongoDB is connected successfully.
+// Start the API only after PostgreSQL is connected successfully via Prisma.
 const startServer = async () => {
   try {
     await connectDB();

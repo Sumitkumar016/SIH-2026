@@ -1,0 +1,15 @@
+/// 7. expenditures: Financial disbursements per work (1-to-N)
+model Expenditure {
+  expenditure_id Int      @id @default(autoincrement()) @map("expenditure_id")
+  work_id        String   @map("work_id") @db.VarChar(100)
+  amount         Decimal  @map("amount") @db.Decimal(15, 2)
+  payment_date   DateTime @map("payment_date") @db.Date
+  payment_mode   String?  @map("payment_mode") @db.VarChar(50)
+  released_by    String?  @map("released_by") @db.VarChar(150)
+
+  // Relationships
+  work           Work     @relation(fields: [work_id], references: [work_id], onDelete: Cascade)
+
+  @@index([work_id])
+  @@map("expenditures")
+}

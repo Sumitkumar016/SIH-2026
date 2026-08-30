@@ -1,0 +1,20 @@
+/// 13. auditor_reports: Investigation & verification findings submitted by Auditor/Investigator (1-to-N)
+model AuditorReport {
+  report_id             Int                 @id @default(autoincrement()) @map("report_id")
+  work_id               String              @map("work_id") @db.VarChar(100)
+  conclusion            AuditorConclusion   @map("conclusion")
+  notes                 String?             @map("notes") @db.Text
+  status                AuditorReportStatus @map("status")
+  verified_progress_pct Decimal?            @map("verified_progress_pct") @db.Decimal(5, 2)
+  discrepancy_flag      Boolean             @default(false) @map("discrepancy_flag")
+  submitted_by          String?             @default("Auditor") @map("submitted_by") @db.VarChar(150)
+  submitted_date        DateTime?           @map("submitted_date") @db.Date
+
+  // Relationships
+  work                  Work                @relation(fields: [work_id], references: [work_id], onDelete: Cascade)
+
+  @@index([work_id])
+  @@index([status])
+  @@index([conclusion])
+  @@map("auditor_reports")
+}
