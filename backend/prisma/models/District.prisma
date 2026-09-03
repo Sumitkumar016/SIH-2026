@@ -6,7 +6,6 @@ model District {
 
   // Relationships
   state         State    @relation(fields: [state_id], references: [state_id], onDelete: Restrict)
-  mps           Mp[]
   users         User[]
   works         Work[]
 

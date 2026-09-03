@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
+import ChatbotWidget from './components/ChatbotWidget';
 
 // Layouts
 import DashboardLayout from './components/layout/DashboardLayout';
@@ -109,6 +110,9 @@ export default function App() {
           <Route path="/" element={<RootRedirect />} />
           <Route path="*" element={<RootRedirect />} />
         </Routes>
+        
+        {/* Global Floating Chatbot Assistant */}
+        <ChatbotWidget />
       </BrowserRouter>
     </AuthProvider>
   );

@@ -1,20 +1,19 @@
 /// 5. users: Platform users with role-based access control
 model User {
-  user_id       Int       @id @default(autoincrement()) @map("user_id")
-  name          String    @map("name") @db.VarChar(150)
-  email         String    @unique @map("email") @db.VarChar(255)
-  password_hash String    @map("password_hash") @db.VarChar(255)
-  role          Role      @map("role")
-  mp_id         Int?      @map("mp_id")
-  district_id   Int?      @map("district_id")
-  state_id      Int?      @map("state_id")
-  created_at    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updated_at    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user_id     Int       @id @default(autoincrement()) @map("user_id")
+  name        String    @map("name") @db.VarChar(150)
+  email       String    @unique @map("email") @db.VarChar(255)
+  password    String    @map("password") @db.VarChar(255)
+  role        Role      @map("role")
+  mp_id       Int?      @map("mp_id")
+  district_id Int?      @map("district_id")
+  state_id    Int?      @map("state_id")
+  
 
   // Relationships
-  mp            Mp?       @relation(fields: [mp_id], references: [mp_id], onDelete: SetNull)
-  district      District? @relation(fields: [district_id], references: [district_id], onDelete: SetNull)
-  state         State?    @relation(fields: [state_id], references: [state_id], onDelete: SetNull)
+  mp          Mp?       @relation(fields: [mp_id], references: [mp_id], onDelete: SetNull)
+  district    District? @relation(fields: [district_id], references: [district_id], onDelete: SetNull)
+  state       State?    @relation(fields: [state_id], references: [state_id], onDelete: SetNull)
 
   @@index([mp_id])
   @@index([district_id])

@@ -1,6 +1,3 @@
-// Main Prisma Configuration File
-// Multi-file schema enabled via 'prismaSchemaFolder' preview feature (Prisma 5.15+ and Prisma 6+)
-
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["prismaSchemaFolder"]

@@ -1,12 +1,5 @@
 // Shared Enums for MPLADS Platform
 
-enum House {
-  LOK_SABHA   @map("Lok Sabha")
-  RAJYA_SABHA @map("Rajya Sabha")
-
-  @@map("house_type")
-}
-
 enum Role {
   ministry
   mp

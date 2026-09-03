@@ -1,65 +1,64 @@
+import { login as apiLogin } from '../api/authApi.js';
+
 /**
- * Mock Authentication Service (src/auth/mockAuth.js)
- * Frontend-only authentication layer for hackathon / demo prototyping.
+ * Authentication Helper & Demo Users (src/auth/mockAuth.js)
+ * Pre-configured with verified real seeded credentials from the Supabase database.
  * 
- * SWAPPABILITY NOTE:
- * When migrating to a real REST backend, only the internals of `login()` need to be replaced
- * with `const res = await fetch('/api/auth/login', { ... }); return res.json();`.
- * All calling signatures and context hooks remain identical.
+ * Consistent Demo Scope:
+ * - State: Bihar (state_id: 5)
+ * - District: Aurangabad (district_id: 84, state_id: 5)
+ * - MP: ABHAY KUMAR SINHA (mp_id: 3, constituency: AURANGABAD_BR, state_id: 5, allocated_amount: 1470)
  */
 
 export const mockUsers = [
   {
     id: 1,
-    name: "Ministry Admin (Central MoSPI)",
+    name: "Ministry Admin",
     email: "ministry@mplads.gov.in",
-    password: "demo123",
+    password: "ministry@mplads123",
     role: "ministry",
     roleLabel: "Ministry (National View)",
     department: "MoSPI Oversight Wing, Govt of India",
     defaultPath: "/ministry/overview",
   },
   {
-    id: 2,
-    name: "Shri Ravi Shankar Prasad",
-    email: "mp@mplads.gov.in",
-    password: "demo123",
+    id: 758,
+    name: "ABHAY KUMAR SINHA",
+    email: "abhaykumarsinha@mplads.gov.in",
+    password: "abhaykumarsinha@mplads123",
     role: "mp",
     roleLabel: "Member of Parliament (MP)",
-    mpId: "MP-BR-0412",
-    constituency: "Patna Sahib",
+    constituency: "AURANGABAD_BR",
     state: "Bihar",
     defaultPath: "/mp/overview",
   },
   {
-    id: 3,
-    name: "Dr. Chandrashekhar Singh, IAS",
-    email: "district@mplads.gov.in",
-    password: "demo123",
+    id: 121,
+    name: "Aurangabad District Authority",
+    email: "aurangabad@mplads.gov.in",
+    password: "aurangabad@mplads123",
     role: "district",
     roleLabel: "District Authority",
-    districtId: "DIST-BR-PATNA",
-    districtName: "Patna",
+    districtName: "Aurangabad",
     state: "Bihar",
     defaultPath: "/district/overview",
   },
   {
-    id: 4,
-    name: "Shri S. Siddharth, IAS",
-    email: "state@mplads.gov.in",
-    password: "demo123",
+    id: 6,
+    name: "Bihar Nodal Authority",
+    email: "bihar@mplads.gov.in",
+    password: "bihar@mplads123",
     role: "state",
     roleLabel: "State Nodal Authority",
-    stateId: "STATE-BR",
     stateName: "Bihar",
-    department: "Planning & Development Department",
+    department: "Planning & Development Department, Bihar",
     defaultPath: "/state/overview",
   },
   {
-    id: 5,
-    name: "Senior Forensic Auditor",
+    id: 1299,
+    name: "Auditor Investigator",
     email: "auditor@mplads.gov.in",
-    password: "demo123",
+    password: "auditor@mplads123",
     role: "auditor",
     roleLabel: "Independent Auditor",
     department: "Central Forensic Investigation Wing",
@@ -68,41 +67,19 @@ export const mockUsers = [
 ];
 
 /**
- * Mock login function returning a Promise to mimic a real REST API endpoint.
- * @param {string} email - Email address or role key
- * @param {string} password - User password
- * @returns {Promise<Object>} Matched user object without password
+ * Delegates to real backend authApi.login
+ * @param {string} email
+ * @param {string} password
  */
 export async function login(email, password) {
-  return new Promise((resolve, reject) => {
-    // Small micro-timeout simulating async network latency
-    setTimeout(() => {
-      const cleanEmail = (email || '').trim().toLowerCase();
-      const user = mockUsers.find(
-        (u) =>
-          (u.email.toLowerCase() === cleanEmail ||
-           u.role.toLowerCase() === cleanEmail) &&
-          u.password === password
-      );
-
-      if (user) {
-        const { password: _, ...safeUser } = user;
-        resolve(safeUser);
-      } else {
-        reject(new Error("Invalid email or password. Use demo123 or select a Quick Login button below."));
-      }
-    }, 150);
-  });
+  const res = await apiLogin(email, password);
+  return res.user;
 }
 
 /**
- * Quick helper to retrieve user profile by role for one-click demo switching.
- * @param {string} role - 'ministry' | 'mp' | 'district' | 'state' | 'auditor'
- * @returns {Object|null}
+ * Quick helper to retrieve demo user profile by role
+ * @param {string} role
  */
 export function getMockUserByRole(role) {
-  const user = mockUsers.find((u) => u.role.toLowerCase() === (role || '').toLowerCase());
-  if (!user) return null;
-  const { password: _, ...safeUser } = user;
-  return safeUser;
+  return mockUsers.find((u) => u.role.toLowerCase() === (role || '').toLowerCase()) || null;
 }

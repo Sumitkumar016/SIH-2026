@@ -1,5 +1,6 @@
 -- MPLADS AI-Powered Anomaly/Risk Detection and Early Warning Platform
 -- Schema DDL for PostgreSQL
+-- Migration: 001_init (corrected to match current schema.prisma)
 
 -- Drop existing tables and types if recreating (clean setup)
 -- DROP SCHEMA public CASCADE; CREATE SCHEMA public;
@@ -7,11 +8,8 @@
 -- =============================================================================
 -- ENUM TYPES
 -- =============================================================================
-
-CREATE TYPE house_type AS ENUM (
-    'Lok Sabha',
-    'Rajya Sabha'
-);
+-- NOTE: house_type enum REMOVED — was only used by mps.house, which has been
+-- removed entirely from the schema.
 
 CREATE TYPE user_role AS ENUM (
     'ministry',
@@ -66,15 +64,16 @@ CREATE TYPE auditor_report_status AS ENUM (
 
 -- =============================================================================
 -- 1. states
+-- FIX: region -> type (matches real CSV data: 'STATE' or 'UT')
 -- =============================================================================
 CREATE TABLE states (
     state_id SERIAL PRIMARY KEY,
     state_name VARCHAR(100) UNIQUE NOT NULL,
-    region VARCHAR(50)
+    type VARCHAR(20)
 );
 
 -- =============================================================================
--- 2. districts
+-- 2. districts (unchanged)
 -- =============================================================================
 CREATE TABLE districts (
     district_id SERIAL PRIMARY KEY,
@@ -87,25 +86,22 @@ CREATE INDEX idx_districts_state_id ON districts(state_id);
 
 -- =============================================================================
 -- 3. mps
+-- FIX: house column REMOVED, district_id column + FK REMOVED,
+--      annual_entitlement REMOVED, allocated_amount ADDED
 -- =============================================================================
 CREATE TABLE mps (
     mp_id SERIAL PRIMARY KEY,
     mp_name VARCHAR(150) NOT NULL,
     constituency VARCHAR(150),
     state_id INTEGER NOT NULL,
-    district_id INTEGER, -- Nullable for Rajya Sabha MPs
-    house house_type NOT NULL,
-    annual_entitlement NUMERIC(12, 2) NOT NULL DEFAULT 200.00,
+    allocated_amount NUMERIC(15, 2),
     CONSTRAINT fk_mps_state FOREIGN KEY (state_id) 
-        REFERENCES states(state_id) ON DELETE RESTRICT,
-    CONSTRAINT fk_mps_district FOREIGN KEY (district_id) 
-        REFERENCES districts(district_id) ON DELETE SET NULL
+        REFERENCES states(state_id) ON DELETE RESTRICT
 );
 CREATE INDEX idx_mps_state_id ON mps(state_id);
-CREATE INDEX idx_mps_district_id ON mps(district_id);
 
 -- =============================================================================
--- 4. vendors
+-- 4. vendors (unchanged)
 -- =============================================================================
 CREATE TABLE vendors (
     vendor_id SERIAL PRIMARY KEY,
@@ -117,18 +113,17 @@ CREATE INDEX idx_vendors_vendor_name ON vendors(vendor_name);
 
 -- =============================================================================
 -- 5. users
+-- FIX: password_hash -> password (plaintext, no hashing for this prototype)
 -- =============================================================================
 CREATE TABLE users (
     user_id SERIAL PRIMARY KEY,
     name VARCHAR(150) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
+    password VARCHAR(255) NOT NULL,
     role user_role NOT NULL,
     mp_id INTEGER,
     district_id INTEGER,
     state_id INTEGER,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_users_mp FOREIGN KEY (mp_id) 
         REFERENCES mps(mp_id) ON DELETE SET NULL,
     CONSTRAINT fk_users_district FOREIGN KEY (district_id) 
@@ -142,13 +137,13 @@ CREATE INDEX idx_users_state_id ON users(state_id);
 
 -- =============================================================================
 -- 6. works
+-- FIX: vendor_id column + FK + index REMOVED (moved to expenditures)
 -- =============================================================================
 CREATE TABLE works (
-    work_id VARCHAR(100) PRIMARY KEY, -- e.g. 'MPLADS-BR-2024-0422'
+    work_id VARCHAR(100) PRIMARY KEY, -- e.g. 'WS/MP620/2024-2025/133166'
     mp_id INTEGER NOT NULL,
     district_id INTEGER NOT NULL,
     state_id INTEGER NOT NULL,
-    vendor_id INTEGER,
     category VARCHAR(100),
     description TEXT,
     sanctioned_amount NUMERIC(15, 2) NOT NULL,
@@ -165,33 +160,36 @@ CREATE TABLE works (
     CONSTRAINT fk_works_district FOREIGN KEY (district_id) 
         REFERENCES districts(district_id) ON DELETE RESTRICT,
     CONSTRAINT fk_works_state FOREIGN KEY (state_id) 
-        REFERENCES states(state_id) ON DELETE RESTRICT,
-    CONSTRAINT fk_works_vendor FOREIGN KEY (vendor_id) 
-        REFERENCES vendors(vendor_id) ON DELETE SET NULL
+        REFERENCES states(state_id) ON DELETE RESTRICT
 );
 CREATE INDEX idx_works_mp_id ON works(mp_id);
 CREATE INDEX idx_works_district_id ON works(district_id);
 CREATE INDEX idx_works_state_id ON works(state_id);
-CREATE INDEX idx_works_vendor_id ON works(vendor_id);
 CREATE INDEX idx_works_status ON works(status);
 
 -- =============================================================================
 -- 7. expenditures (1-to-N with works)
+-- FIX: vendor_id column + FK + index ADDED (moved here from works)
+-- FIX: payment_mode -> payment_status (matches real source data meaning)
 -- =============================================================================
 CREATE TABLE expenditures (
     expenditure_id SERIAL PRIMARY KEY,
     work_id VARCHAR(100) NOT NULL,
+    vendor_id INTEGER,
     amount NUMERIC(15, 2) NOT NULL,
     payment_date DATE NOT NULL,
-    payment_mode VARCHAR(50),
+    payment_status VARCHAR(50),
     released_by VARCHAR(150),
     CONSTRAINT fk_expenditures_work FOREIGN KEY (work_id) 
-        REFERENCES works(work_id) ON DELETE CASCADE
+        REFERENCES works(work_id) ON DELETE CASCADE,
+    CONSTRAINT fk_expenditures_vendor FOREIGN KEY (vendor_id) 
+        REFERENCES vendors(vendor_id) ON DELETE SET NULL
 );
 CREATE INDEX idx_expenditures_work_id ON expenditures(work_id);
+CREATE INDEX idx_expenditures_vendor_id ON expenditures(vendor_id);
 
 -- =============================================================================
--- 8. work_progress (1-to-N with works)
+-- 8. work_progress (unchanged)
 -- =============================================================================
 CREATE TABLE work_progress (
     progress_id SERIAL PRIMARY KEY,
@@ -208,7 +206,7 @@ CREATE TABLE work_progress (
 CREATE INDEX idx_work_progress_work_id ON work_progress(work_id);
 
 -- =============================================================================
--- 9. asset_creation (1-to-N with works)
+-- 9. asset_creation (unchanged)
 -- =============================================================================
 CREATE TABLE asset_creation (
     asset_id SERIAL PRIMARY KEY,
@@ -223,7 +221,7 @@ CREATE TABLE asset_creation (
 CREATE INDEX idx_asset_creation_work_id ON asset_creation(work_id);
 
 -- =============================================================================
--- 10. risk_scores (1-to-1 with works)
+-- 10. risk_scores (unchanged)
 -- =============================================================================
 CREATE TABLE risk_scores (
     risk_id SERIAL PRIMARY KEY,
@@ -245,7 +243,7 @@ CREATE INDEX idx_risk_scores_work_id ON risk_scores(work_id);
 CREATE INDEX idx_risk_scores_risk_level ON risk_scores(risk_level);
 
 -- =============================================================================
--- 11. predictions (1-to-1 with works)
+-- 11. predictions (unchanged)
 -- =============================================================================
 CREATE TABLE predictions (
     prediction_id SERIAL PRIMARY KEY,
@@ -262,7 +260,7 @@ CREATE TABLE predictions (
 CREATE INDEX idx_predictions_work_id ON predictions(work_id);
 
 -- =============================================================================
--- 12. escalations (1-to-N with works)
+-- 12. escalations (unchanged)
 -- =============================================================================
 CREATE TABLE escalations (
     escalation_id SERIAL PRIMARY KEY,
@@ -278,7 +276,7 @@ CREATE INDEX idx_escalations_work_id ON escalations(work_id);
 CREATE INDEX idx_escalations_source ON escalations(escalation_source);
 
 -- =============================================================================
--- 13. auditor_reports (1-to-N with works)
+-- 13. auditor_reports (unchanged)
 -- =============================================================================
 CREATE TABLE auditor_reports (
     report_id SERIAL PRIMARY KEY,

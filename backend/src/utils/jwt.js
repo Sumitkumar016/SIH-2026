@@ -1,21 +1,28 @@
 import jwt from "jsonwebtoken";
 import config from "../config/env.js";
 
-// Create an access token with only non-sensitive user information.
-// Never include password, email verification data, or private profile details here.
+/**
+ * Generate an access token containing core user authorization attributes.
+ * Expiry is 8 hours.
+ */
 export const generateAccessToken = (user) => {
   const payload = {
-    userId: user._id.toString(),
+    user_id: user.user_id,
+    name: user.name,
     role: user.role,
+    mp_id: user.mp_id,
+    district_id: user.district_id,
+    state_id: user.state_id,
   };
 
-  return jwt.sign(payload, config.jwtSecret, {
-    expiresIn: config.jwtExpiresIn,
+  return jwt.sign(payload, process.env.JWT_SECRET || config.jwtSecret, {
+    expiresIn: "8h",
   });
 };
 
-// Verify the access token and return the decoded payload if it is valid.
-// jsonwebtoken will throw if the token is missing, expired, or invalid.
+/**
+ * Verify access token and return decoded payload.
+ */
 export const verifyAccessToken = (token) => {
-  return jwt.verify(token, config.jwtSecret);
+  return jwt.verify(token, process.env.JWT_SECRET || config.jwtSecret);
 };

@@ -4,7 +4,6 @@ model Work {
   mp_id                  Int             @map("mp_id")
   district_id            Int             @map("district_id")
   state_id               Int             @map("state_id")
-  vendor_id              Int?            @map("vendor_id")
   category               String?         @map("category") @db.VarChar(100)
   description            String?         @map("description") @db.Text
   sanctioned_amount      Decimal         @map("sanctioned_amount") @db.Decimal(15, 2)
@@ -21,7 +20,6 @@ model Work {
   mp                     Mp              @relation(fields: [mp_id], references: [mp_id], onDelete: Restrict)
   district               District        @relation(fields: [district_id], references: [district_id], onDelete: Restrict)
   state                  State           @relation(fields: [state_id], references: [state_id], onDelete: Restrict)
-  vendor                 Vendor?         @relation(fields: [vendor_id], references: [vendor_id], onDelete: SetNull)
 
   // Child Relationships (One-to-Many / One-to-One with CASCADE delete)
   expenditures           Expenditure[]
@@ -35,7 +33,6 @@ model Work {
   @@index([mp_id])
   @@index([district_id])
   @@index([state_id])
-  @@index([vendor_id])
   @@index([status])
   @@map("works")
 }

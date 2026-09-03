@@ -1,12 +1,12 @@
 /// 4. vendors: Contractors / Executing Agencies
 model Vendor {
-  vendor_id           Int     @id @default(autoincrement()) @map("vendor_id")
-  vendor_name         String  @map("vendor_name") @db.VarChar(200)
-  registration_number String? @unique @map("registration_number") @db.VarChar(100)
-  contact_info        String? @map("contact_info") @db.VarChar(255)
+  vendor_id           Int           @id @default(autoincrement()) @map("vendor_id")
+  vendor_name         String        @map("vendor_name") @db.VarChar(200)
+  registration_number String?       @unique @map("registration_number") @db.VarChar(100)
+  contact_info        String?       @map("contact_info") @db.VarChar(255)
 
   // Relationships
-  works               Work[]
+  expenditures        Expenditure[]
 
   @@index([vendor_name])
   @@map("vendors")

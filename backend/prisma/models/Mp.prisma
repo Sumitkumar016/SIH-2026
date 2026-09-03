@@ -1,20 +1,16 @@
-/// 3. mps: Members of Parliament (Lok Sabha & Rajya Sabha)
+/// 3. mps: Members of Parliament
 model Mp {
-  mp_id              Int       @id @default(autoincrement()) @map("mp_id")
-  mp_name            String    @map("mp_name") @db.VarChar(150)
-  constituency       String?   @map("constituency") @db.VarChar(150)
-  state_id           Int       @map("state_id")
-  district_id        Int?      @map("district_id") // Nullable for Rajya Sabha MPs
-  house              House     @map("house")
-  annual_entitlement Decimal   @default(200.00) @map("annual_entitlement") @db.Decimal(12, 2)
+  mp_id            Int      @id @default(autoincrement()) @map("mp_id")
+  mp_name          String   @map("mp_name") @db.VarChar(150)
+  constituency     String?  @map("constituency") @db.VarChar(150)
+  state_id         Int      @map("state_id")
+  allocated_amount Decimal? @map("allocated_amount") @db.Decimal(15, 2)
 
   // Relationships
-  state              State     @relation(fields: [state_id], references: [state_id], onDelete: Restrict)
-  district           District? @relation(fields: [district_id], references: [district_id], onDelete: SetNull)
-  users              User[]
-  works              Work[]
+  state            State    @relation(fields: [state_id], references: [state_id], onDelete: Restrict)
+  users            User[]
+  works            Work[]
 
   @@index([state_id])
-  @@index([district_id])
   @@map("mps")
 }

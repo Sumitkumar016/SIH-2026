@@ -11,7 +11,6 @@ import {
   Award,
   FileCheck,
   Fingerprint,
-  CheckCircle2,
   Landmark,
   Eye,
   EyeOff,
@@ -23,8 +22,8 @@ import { mockUsers } from '../auth/mockAuth';
  * LoginPage Component (Route: /login)
  * 
  * Provides:
- * 1. Standard credential form (Email/Username + Password)
- * 2. 5 One-Click "Quick Demo Login" buttons for instant role switching during demo presentations
+ * 1. Standard credential form (Email + Plaintext Password)
+ * 2. 5 One-Click "Quick Demo Login" buttons connecting to real backend auth
  */
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -57,11 +56,17 @@ export default function LoginPage() {
     }
   };
 
-  const handleQuickLogin = (mockUser) => {
+  const handleQuickLogin = async (demoUser) => {
     setErrorMessage('');
-    const loggedUser = loginAsRole(mockUser);
-    if (loggedUser) {
-      navigate(loggedUser.defaultPath || '/ministry/overview', { replace: true });
+    setEmail(demoUser.email);
+    setPassword(demoUser.password);
+
+    const res = await loginAsRole(demoUser);
+    if (res.success) {
+      const destination = fromPath || res.user.defaultPath || '/ministry/overview';
+      navigate(destination, { replace: true });
+    } else {
+      setErrorMessage(res.error || 'Authentication failed.');
     }
   };
 
@@ -138,7 +143,7 @@ export default function LoginPage() {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter password (demo123)"
+                  placeholder="Enter password (e.g. ministry@mplads123)"
                   className="w-full pl-9 pr-10 py-2.5 bg-white text-xs sm:text-sm text-[#0F1419] placeholder-slate-400 border border-[#EFF3F4] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1D9BF0] focus:border-transparent transition-all"
                 />
                 <button
@@ -173,7 +178,7 @@ export default function LoginPage() {
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
                 ⚡ Quick Demo One-Click Login
               </span>
-              <span className="text-[10px] text-slate-400 font-mono">demo123</span>
+              <span className="text-[10px] text-slate-400 font-mono">Backend Auth</span>
             </div>
 
             <div className="grid grid-cols-1 gap-2">
@@ -191,8 +196,9 @@ export default function LoginPage() {
                   <button
                     key={u.id}
                     type="button"
+                    disabled={loading}
                     onClick={() => handleQuickLogin(u)}
-                    className="flex items-center justify-between p-2.5 rounded-xl border border-[#EFF3F4] bg-[#F7F9F9] hover:bg-sky-50/60 hover:border-sky-200 transition-all text-left group"
+                    className="flex items-center justify-between p-2.5 rounded-xl border border-[#EFF3F4] bg-[#F7F9F9] hover:bg-sky-50/60 hover:border-sky-200 transition-all text-left group disabled:opacity-60"
                   >
                     <div className="flex items-center gap-2.5">
                       <div className="w-8 h-8 rounded-lg bg-white border border-[#EFF3F4] flex items-center justify-center text-[#1D9BF0] group-hover:scale-105 transition-transform shadow-2xs">
@@ -203,7 +209,7 @@ export default function LoginPage() {
                           Login as {u.roleLabel}
                         </div>
                         <div className="text-[11px] text-slate-500 truncate max-w-[220px]">
-                          {u.name}
+                          {u.name} · {u.email}
                         </div>
                       </div>
                     </div>
@@ -218,7 +224,7 @@ export default function LoginPage() {
 
           {/* Footer Note */}
           <div className="pt-2 text-center text-[11px] text-slate-400">
-            <span>Mock Role-Based Access Control • Internal Hackathon Demo</span>
+            <span>Role-Based Access Control • Smart India Hackathon 2026</span>
           </div>
 
         </div>
