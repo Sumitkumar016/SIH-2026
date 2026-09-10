@@ -30,6 +30,8 @@ import {
  * - Excludes risk scores and anomaly counts to maintain fairness to MPs
  * - Uses neutral Twitter-blue branding (NO red/amber/green risk colors)
  */
+import { TableSkeleton } from './loading';
+
 export default function MpLeaderboardWidget({ leaderboardData }) {
   const [activeTab, setActiveTab] = useState('top5'); // 'top5' or 'bottom5'
   const [expandedMpName, setExpandedMpName] = useState(null);
@@ -37,8 +39,8 @@ export default function MpLeaderboardWidget({ leaderboardData }) {
 
   if (!leaderboardData) {
     return (
-      <div className="bg-white border border-[#EFF3F4] rounded-2xl p-6 shadow-subtle flex items-center justify-center min-h-[220px]">
-        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#1D9BF0]" />
+      <div className="bg-white border border-[#EFF3F4] rounded-2xl p-5 shadow-subtle">
+        <TableSkeleton rows={5} columns={4} />
       </div>
     );
   }

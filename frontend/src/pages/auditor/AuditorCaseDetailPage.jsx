@@ -31,6 +31,7 @@ import {
   Cell,
 } from 'recharts';
 import RiskBadge from '../../components/common/RiskBadge';
+import { WorkDetailSkeleton, ErrorState } from '../../components/common/loading';
 import { auditorApi } from '../../api/auditorApi';
 
 /**
@@ -43,6 +44,7 @@ export default function AuditorCaseDetailPage() {
   const navigate = useNavigate();
   const [caseData, setCaseData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Investigation Form State
   const [investigationNotes, setInvestigationNotes] = useState('');
@@ -63,16 +65,18 @@ export default function AuditorCaseDetailPage() {
   const [assetSubmittedSuccess, setAssetSubmittedSuccess] = useState(false);
 
   const loadCase = async () => {
-    setLoading(true);
-    const res = await auditorApi.getCaseById(workId);
-    if (res) {
-      setCaseData(res);
-      if (res.auditorReport) {
-        setInvestigationNotes(res.auditorReport.notes || '');
-        setConclusion(res.auditorReport.conclusion || '');
-        setStatus(res.auditorReport.status || 'Under Review');
-        setVerifiedProgressPct(
-          res.auditorReport.verifiedProgressPct !== null && res.auditorReport.verifiedProgressPct !== undefined
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await auditorApi.getCaseById(workId);
+      if (res) {
+        setCaseData(res);
+        if (res.auditorReport) {
+          setInvestigationNotes(res.auditorReport.notes || '');
+          setConclusion(res.auditorReport.conclusion || '');
+          setStatus(res.auditorReport.status || 'Under Review');
+          setVerifiedProgressPct(
+            res.auditorReport.verifiedProgressPct !== null && res.auditorReport.verifiedProgressPct !== undefined
             ? String(res.auditorReport.verifiedProgressPct)
             : ''
         );
@@ -94,9 +98,16 @@ export default function AuditorCaseDetailPage() {
             : ''
         );
       }
+    } else {
+      setError(`No forensic investigation record was found for work ID "${workId}".`);
     }
+  } catch (err) {
+    console.error('Failed to load auditor case:', err);
+    setError(err?.message || 'Failed to load case investigation details.');
+  } finally {
     setLoading(false);
-  };
+  }
+};
 
   useEffect(() => {
     loadCase();
@@ -168,10 +179,27 @@ export default function AuditorCaseDetailPage() {
     }
   };
 
-  if (loading || !caseData) {
+  if (loading && !caseData) {
+    return <WorkDetailSkeleton />;
+  }
+
+  if (error || !caseData) {
     return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1D9BF0]" />
+      <div className="space-y-6 max-w-4xl mx-auto py-6 animate-in fade-in duration-300">
+        <div className="flex items-center justify-between pb-3 border-b border-[#EFF3F4]">
+          <button
+            onClick={() => navigate('/auditor/queue')}
+            className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 hover:text-[#0F1419] transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back to Investigation Queue</span>
+          </button>
+        </div>
+        <ErrorState
+          title="Investigation Dossier Not Found"
+          message={error || `No forensic investigation record was found for work ID "${workId}".`}
+          onRetry={loadCase}
+        />
       </div>
     );
   }

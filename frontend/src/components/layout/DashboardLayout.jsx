@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import TopNavbar from '../common/TopNavbar';
+import ErrorBoundary from '../common/loading/ErrorBoundary';
 import { mpladsService } from '../../api/mpladsService';
 
 /**
@@ -37,8 +38,10 @@ export default function DashboardLayout() {
 
       {/* Main Dynamic View Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Pass handleOpenWorkDetail to child routes via context */}
-        <Outlet context={{ onOpenWorkDetail: handleOpenWorkDetail }} />
+        <ErrorBoundary>
+          {/* Pass handleOpenWorkDetail to child routes via context */}
+          <Outlet context={{ onOpenWorkDetail: handleOpenWorkDetail }} />
+        </ErrorBoundary>
       </main>
 
       {/* Footer */}

@@ -17,6 +17,11 @@ import {
   Layers,
 } from 'lucide-react';
 import RiskBadge from '../../components/common/RiskBadge';
+import {
+  CardSkeleton,
+  ListSkeleton,
+  ErrorState,
+} from '../../components/common/loading';
 import { districtApi } from '../../api/districtApi';
 
 /**
@@ -27,31 +32,39 @@ export default function DistrictOverviewPage() {
   const { onOpenWorkDetail } = useOutletContext();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [expandedMp, setExpandedMp] = useState(null);
 
-  useEffect(() => {
-    async function loadOverview() {
+  const loadOverview = async () => {
+    try {
       setLoading(true);
+      setError(null);
       const res = await districtApi.getDistrictOverview();
       setData(res);
       // Auto-expand first MP for demo scannability
       if (res.mpBreakdown && res.mpBreakdown.length > 0) {
         setExpandedMp(res.mpBreakdown[0].mpName);
       }
+    } catch (err) {
+      console.error('Failed to load district overview:', err);
+      setError(err?.message || 'Failed to retrieve district telemetry.');
+    } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
     loadOverview();
   }, []);
 
-  if (loading || !data) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1D9BF0]" />
-      </div>
-    );
-  }
-
-  const { district, kpis, mpBreakdown } = data;
+  const district = data?.district || {
+    districtName: 'Patna',
+    headquarters: 'Patna Collectorate',
+    state: 'Bihar',
+    nodalOfficer: 'District Magistrate & Collector',
+  };
+  const kpis = data?.kpis;
+  const mpBreakdown = data?.mpBreakdown || [];
 
   const toggleExpand = (mpName) => {
     setExpandedMp(prev => prev === mpName ? null : mpName);
@@ -98,8 +111,21 @@ export default function DistrictOverviewPage() {
         </div>
       </div>
 
-      {/* SUMMARY KPI CARDS (SCOPED TO THIS DISTRICT) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {error && !data ? (
+        <ErrorState
+          title="District Telemetry Offline"
+          message={error}
+          onRetry={loadOverview}
+        />
+      ) : !data ? (
+        <>
+          <CardSkeleton count={4} />
+          <ListSkeleton count={3} title="MP Portfolio Breakdown" />
+        </>
+      ) : (
+        <>
+          {/* SUMMARY KPI CARDS (SCOPED TO THIS DISTRICT) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
         {/* Card 1: Total Works */}
         <div className="bg-white border border-[#EFF3F4] rounded-2xl p-4 shadow-subtle hover:shadow-card transition-all">
@@ -300,6 +326,8 @@ export default function DistrictOverviewPage() {
           })}
         </div>
       </div>
+        </>
+      )}
 
     </div>
   );

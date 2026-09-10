@@ -35,6 +35,7 @@ import {
 } from 'recharts';
 import RiskBadge from '../components/common/RiskBadge';
 import Sparkline from '../components/common/Sparkline';
+import { WorkDetailSkeleton, ErrorState } from '../components/common/loading';
 import { mpladsService } from '../api/mpladsService';
 import { auditorApi } from '../api/auditorApi';
 import { useAuth } from '../context/AuthContext';
@@ -91,54 +92,47 @@ export default function WorkDetailPage() {
   const backDest = getBackDestination();
 
   // Load work data by workId
-  useEffect(() => {
-    let isMounted = true;
+  const loadWork = async () => {
+    // Check if the work currently in state is already a full detail object
+    const hasFullDetail =
+      work &&
+      work.workId?.toLowerCase() === workId?.toLowerCase() &&
+      (Boolean(work.riskFactorBreakdown) ||
+        Boolean(work.progressHistory) ||
+        Boolean(work.expenditureBreakdown) ||
+        Boolean(work.contractorName) ||
+        Boolean(work.sanctionOrderNumber));
 
-    async function loadWork() {
-      // Check if the work currently in state is already a full detail object
-      const hasFullDetail =
-        work &&
-        work.workId?.toLowerCase() === workId?.toLowerCase() &&
-        (Boolean(work.riskFactorBreakdown) ||
-          Boolean(work.progressHistory) ||
-          Boolean(work.expenditureBreakdown) ||
-          Boolean(work.contractorName) ||
-          Boolean(work.sanctionOrderNumber));
-
-      if (hasFullDetail) {
-        return;
-      }
-
-      if (!work) setLoading(true);
-      setNotFound(false);
-
-      try {
-        let data = await mpladsService.getWorkById(workId);
-        if (!data) {
-          data = await auditorApi.getCaseById(workId);
-        }
-
-        if (isMounted) {
-          if (data) {
-            setWork(data);
-          } else if (!work) {
-            setNotFound(true);
-          }
-        }
-      } catch (err) {
-        console.error('Failed to load work details:', err);
-        if (isMounted && !work) setNotFound(true);
-      } finally {
-        if (isMounted) setLoading(false);
-      }
+    if (hasFullDetail) {
+      return;
     }
 
+    if (!work) setLoading(true);
+    setNotFound(false);
+
+    try {
+      let data = await mpladsService.getWorkById(workId);
+      if (!data) {
+        data = await auditorApi.getCaseById(workId);
+      }
+
+      if (data) {
+        setWork(data);
+      } else if (!work) {
+        setNotFound(true);
+      }
+    } catch (err) {
+      console.error('Failed to load work details:', err);
+      if (!work) setNotFound(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     if (workId) {
       loadWork();
     }
-    return () => {
-      isMounted = false;
-    };
   }, [workId]);
 
   // Copy Work ID to clipboard
@@ -162,43 +156,35 @@ export default function WorkDetailPage() {
     setTimeout(() => setAuditNoticeSent(false), 4000);
   };
 
-
-  // Loading State
-  if (loading) {
-    return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-4">
-        <div className="w-10 h-10 border-3 border-[#1D9BF0] border-t-transparent rounded-full animate-spin" />
-        <p className="text-sm text-slate-500 font-medium">Loading case details for {workId}...</p>
-      </div>
-    );
+  // Loading State - Render matching skeleton dossier
+  if (loading && !work) {
+    return <WorkDetailSkeleton />;
   }
 
-  // Case Not Found State
+  // Case Not Found / Error State
   if (notFound || !work) {
     return (
-      <div className="max-w-3xl mx-auto py-12 px-4 text-center">
-        <div className="w-14 h-14 bg-rose-50 border border-rose-200 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-          <AlertTriangle className="w-7 h-7" />
-        </div>
-        <h2 className="text-xl font-bold text-[#0F1419] mb-2">Case Dossier Not Found</h2>
-        <p className="text-sm text-slate-500 mb-6 max-w-md mx-auto">
-          No work record with ID <span className="font-mono font-semibold text-[#0F1419]">{workId}</span> was found in the central registry or active watchlists.
-        </p>
-        <div className="flex items-center justify-center gap-3">
+      <div className="space-y-6 max-w-4xl mx-auto py-6 animate-in fade-in duration-300">
+        <div className="flex items-center justify-between pb-3 border-b border-[#EFF3F4]">
           <button
             onClick={() => navigate(-1)}
-            className="px-4 py-2 text-xs font-semibold text-[#0F1419] bg-white border border-[#EFF3F4] rounded-lg hover:bg-slate-50 shadow-xs flex items-center gap-2"
+            className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 hover:text-[#0F1419] transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            Go Back
+            <span>Go Back</span>
           </button>
           <Link
             to={backDest.path}
-            className="px-4 py-2 text-xs font-semibold text-white bg-[#1D9BF0] rounded-lg hover:bg-[#1A8CD8] shadow-xs"
+            className="text-xs font-semibold text-[#1D9BF0] hover:underline"
           >
             Return to {backDest.label}
           </Link>
         </div>
+        <ErrorState
+          title="Case Dossier Not Found"
+          message={`No work record with ID "${workId}" was found in the central registry or active watchlists.`}
+          onRetry={loadWork}
+        />
       </div>
     );
   }

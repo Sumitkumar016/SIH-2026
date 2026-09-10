@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import RiskBadge from '../../components/common/RiskBadge';
 import SearchBox from '../../components/common/SearchBox';
+import { ErrorState, EmptyState } from '../../components/common/loading';
 import { districtApi } from '../../api/districtApi';
 
 /**
@@ -27,9 +28,12 @@ export default function DistrictVerificationQueuePage() {
   const { onOpenWorkDetail, refreshData } = useOutletContext();
   const [queueWorks, setQueueWorks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState('All');
+  const [filterRisk, setFilterRisk] = useState('All');
 
-  // Escalation Modal State
+  // Modal / Action states
   const [escalatingWork, setEscalatingWork] = useState(null);
   const [escalationNote, setEscalationNote] = useState('');
   const [isEscalating, setIsEscalating] = useState(false);
@@ -38,10 +42,17 @@ export default function DistrictVerificationQueuePage() {
   const [toastMessage, setToastMessage] = useState(null);
 
   const loadQueue = async () => {
-    setLoading(true);
-    const res = await districtApi.getVerificationQueue();
-    setQueueWorks(res.data || []);
-    setLoading(false);
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await districtApi.getVerificationQueue();
+      setQueueWorks(res.data || []);
+    } catch (err) {
+      console.error('Failed to load verification queue:', err);
+      setError(err?.message || 'Failed to retrieve district verification queue.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -168,15 +179,38 @@ export default function DistrictVerificationQueuePage() {
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-[#EFF3F4] text-xs">
-              {filteredQueue.length === 0 ? (
+            <tbody className={`divide-y divide-[#EFF3F4] text-xs ${loading && queueWorks.length > 0 ? 'opacity-70 transition-opacity' : ''}`}>
+              {error ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <CheckCircle2 className="w-8 h-8 text-emerald-500" />
-                      <span className="font-medium text-sm">All completed works in Patna have verified photo evidence!</span>
-                      <span className="text-xs text-slate-400">No pending verification flags in the ground queue.</span>
-                    </div>
+                  <td colSpan={8} className="py-8">
+                    <ErrorState
+                      title="Failed to Load Verification Queue"
+                      message={error}
+                      onRetry={loadQueue}
+                    />
+                  </td>
+                </tr>
+              ) : loading && queueWorks.length === 0 ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td className="py-4 px-4"><div className="h-4 bg-slate-200 rounded w-20" /></td>
+                    <td className="py-4 px-4"><div className="h-4 bg-slate-200 rounded w-28 mb-1" /><div className="h-3 bg-slate-100 rounded w-16" /></td>
+                    <td className="py-4 px-4"><div className="h-4 bg-slate-200 rounded w-44 mb-1" /><div className="h-3 bg-slate-100 rounded w-24" /></td>
+                    <td className="py-4 px-3 font-mono"><div className="h-4 bg-slate-200 rounded w-16" /></td>
+                    <td className="py-4 px-3 text-center"><div className="h-5 bg-slate-200 rounded w-12 mx-auto" /></td>
+                    <td className="py-4 px-3 text-center"><div className="h-5 bg-slate-200 rounded w-14 mx-auto" /></td>
+                    <td className="py-4 px-3 text-center"><div className="h-5 bg-slate-200 rounded w-16 mx-auto" /></td>
+                    <td className="py-4 px-4 text-right"><div className="h-7 bg-slate-200 rounded w-36 ml-auto" /></td>
+                  </tr>
+                ))
+              ) : filteredQueue.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-8">
+                    <EmptyState
+                      icon={CheckCircle2}
+                      title="All Completed Works Verified"
+                      message="No pending verification flags in the ground queue for Patna district."
+                    />
                   </td>
                 </tr>
               ) : (

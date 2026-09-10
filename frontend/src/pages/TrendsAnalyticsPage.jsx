@@ -34,6 +34,11 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { mpladsService } from '../api/mpladsService';
+import {
+  CardSkeleton,
+  ChartSkeleton,
+  ErrorState,
+} from '../components/common/loading';
 
 /* ==========================================================================
    STATISTICAL & AGGREGATION HELPER FUNCTIONS
@@ -400,43 +405,7 @@ export default function TrendsAnalyticsPage() {
     return Array.from(new Set(rawData.stateComparison.map((s) => s.state))).sort();
   }, [rawData]);
 
-  // Loading State
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#1D9BF0]" />
-        <p className="text-sm font-medium text-slate-500">Loading National Trends & Risk Analytics...</p>
-      </div>
-    );
-  }
-
-  // Error State
-  if (error || !rawData) {
-    return (
-      <div className="min-h-[50vh] flex items-center justify-center p-6">
-        <div className="max-w-md w-full bg-white border border-rose-200 rounded-2xl p-6 text-center shadow-subtle space-y-4">
-          <div className="mx-auto w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center">
-            <AlertTriangle className="w-6 h-6" />
-          </div>
-          <div>
-            <h3 className="text-base font-bold text-[#0F1419]">Unable to Load Trend Analytics</h3>
-            <p className="text-xs text-slate-500 mt-1">
-              {error || 'The system could not retrieve trends analytics from the server.'}
-            </p>
-          </div>
-          <button
-            onClick={fetchData}
-            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg bg-[#1D9BF0] text-white hover:bg-sky-600 transition-colors shadow-sm"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            Retry Request
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  const { topVendors = [] } = rawData;
+  const topVendors = rawData?.topVendors || [];
 
   return (
     <div className="space-y-6 pb-12 animate-in fade-in duration-300">
@@ -518,10 +487,30 @@ export default function TrendsAnalyticsPage() {
         </div>
       )}
 
-      {/* ====================================================================
-          2. KPI SUMMARY (5 Compact Cards based on actual backend data)
-          ==================================================================== */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+      {error && !rawData ? (
+        <ErrorState
+          title="Unable to Load Trend Analytics"
+          message={error}
+          onRetry={fetchData}
+        />
+      ) : !rawData ? (
+        <>
+          <CardSkeleton count={5} />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ChartSkeleton title="Monthly Flagged Cases Trend" height="h-72" />
+            <ChartSkeleton title="Risk Category Distribution" height="h-72" />
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ChartSkeleton title="State Performance Comparison" height="h-72" />
+            <ChartSkeleton title="Vendor Concentration Analysis" height="h-72" />
+          </div>
+        </>
+      ) : (
+        <>
+          {/* ====================================================================
+              2. KPI SUMMARY (5 Compact Cards based on actual backend data)
+              ==================================================================== */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         {/* Card 1: Total Flagged Works */}
         <div className="bg-white border border-[#EFF3F4] rounded-xl p-4 shadow-subtle">
           <div className="flex items-center justify-between">
@@ -1217,6 +1206,8 @@ export default function TrendsAnalyticsPage() {
           ))}
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

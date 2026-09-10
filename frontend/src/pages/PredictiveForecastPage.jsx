@@ -15,6 +15,7 @@ import {
 import Sparkline from '../components/common/Sparkline';
 import SearchBox from '../components/common/SearchBox';
 import FilterBar from '../components/common/FilterBar';
+import { ErrorState, EmptyState } from '../components/common/loading';
 import { mpladsService } from '../api/mpladsService';
 
 /**
@@ -26,6 +27,7 @@ export default function PredictiveForecastPage() {
   const { onOpenWorkDetail } = useOutletContext();
   const [watchlist, setWatchlist] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
@@ -38,16 +40,24 @@ export default function PredictiveForecastPage() {
   const [sortField, setSortField] = useState('riskDelta');
   const [sortDirection, setSortDirection] = useState('desc');
 
-  useEffect(() => {
-    async function loadData() {
+  const loadData = async () => {
+    try {
       setLoading(true);
+      setError(null);
       const res = await mpladsService.getPredictiveWatchlist({
         search: searchQuery,
         ...filters,
       });
       setWatchlist(res.data || []);
+    } catch (err) {
+      console.error('Failed to load predictive forecast:', err);
+      setError(err?.message || 'Failed to retrieve predictive risk watchlist.');
+    } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
     loadData();
   }, [searchQuery, filters]);
 
@@ -227,14 +237,41 @@ export default function PredictiveForecastPage() {
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-[#EFF3F4] text-xs">
-              {sortedWatchlist.length === 0 ? (
+            <tbody className={`divide-y divide-[#EFF3F4] text-xs ${loading && watchlist.length > 0 ? 'opacity-70 transition-opacity' : ''}`}>
+              {error ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-400">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <CheckCircle2 className="w-8 h-8 text-emerald-500" />
-                      <span className="font-medium text-sm">No predictive risks identified for the current filters.</span>
-                    </div>
+                  <td colSpan={9} className="py-8">
+                    <ErrorState
+                      title="Failed to Load Predictive Watchlist"
+                      message={error}
+                      onRetry={loadData}
+                    />
+                  </td>
+                </tr>
+              ) : loading && watchlist.length === 0 ? (
+                Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td className="py-4 px-4"><div className="h-4 bg-slate-200 rounded w-20" /></td>
+                    <td className="py-4 px-4"><div className="h-4 bg-slate-200 rounded w-28 mb-1" /><div className="h-3 bg-slate-100 rounded w-16" /></td>
+                    <td className="py-4 px-4"><div className="h-4 bg-slate-200 rounded w-24 mb-1" /><div className="h-3 bg-slate-100 rounded w-14" /></td>
+                    <td className="py-4 px-3 text-center"><div className="h-6 bg-slate-200 rounded-full w-12 mx-auto" /></td>
+                    <td className="py-4 px-3 text-center"><div className="h-6 bg-slate-200 rounded-full w-12 mx-auto" /></td>
+                    <td className="py-4 px-3 text-center"><div className="h-4 bg-slate-200 rounded w-14 mx-auto" /></td>
+                    <td className="py-4 px-3"><div className="h-6 bg-slate-200 rounded w-24 mx-auto" /></td>
+                    <td className="py-4 px-4"><div className="h-4 bg-slate-200 rounded w-44" /></td>
+                    <td className="py-4 px-4 text-right"><div className="h-5 bg-slate-200 rounded w-16 ml-auto" /></td>
+                  </tr>
+                ))
+              ) : sortedWatchlist.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="py-8">
+                    <EmptyState
+                      icon={CheckCircle2}
+                      title="No Predictive Risks Identified"
+                      message="No current projects exceed the predictive early warning threshold for these filters."
+                      actionText="Reset Filters"
+                      onAction={handleResetFilters}
+                    />
                   </td>
                 </tr>
               ) : (

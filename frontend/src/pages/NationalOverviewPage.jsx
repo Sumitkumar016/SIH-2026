@@ -31,6 +31,14 @@ import {
 } from 'recharts';
 import RiskBadge from '../components/common/RiskBadge';
 import MpLeaderboardWidget from '../components/common/MpLeaderboardWidget';
+import {
+  CardSkeleton,
+  MapSkeleton,
+  ChartSkeleton,
+  ListSkeleton,
+  TableSkeleton,
+  ErrorState,
+} from '../components/common/loading';
 import { mpladsService } from '../api/mpladsService';
 import { ministryApi } from '../api/ministryApi';
 
@@ -44,6 +52,8 @@ export default function NationalOverviewPage() {
   const [data, setData] = useState(null);
   const [leaderboardData, setLeaderboardData] = useState(null);
   const [viewMode, setViewMode] = useState('density'); // 'density' or 'bar'
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Navigate to Flagged Cases page with a pre-applied state filter
   const handleStateClick = (stateName) => {
@@ -51,34 +61,39 @@ export default function NationalOverviewPage() {
     navigate(`/ministry/flagged?state=${encodeURIComponent(stateName)}`);
   };
 
-  useEffect(() => {
-    async function loadData() {
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
       const [overviewRes, lbRes] = await Promise.all([
         mpladsService.getNationalOverviewMetrics(),
         (ministryApi?.getMpLeaderboard || mpladsService.getMpLeaderboard)(),
       ]);
       setData(overviewRes);
       setLeaderboardData(lbRes);
+    } catch (err) {
+      console.error('Failed to load national overview:', err);
+      setError(err?.message || 'Failed to connect to national telemetry services.');
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
     loadData();
   }, []);
 
-  if (!data) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1D9BF0]" />
-      </div>
-    );
-  }
-
-  const { kpis, statesData, recentAlerts, topAttentionStates } = data;
+  const kpis = data?.kpis;
+  const statesData = data?.statesData || [];
+  const recentAlerts = data?.recentAlerts || [];
+  const topAttentionStates = data?.topAttentionStates || [];
 
   // Pie chart data for National Risk Distribution
-  const pieData = [
-    { name: 'Low Risk', value: kpis.riskDistribution.low, color: '#10B981' },
-    { name: 'Medium Risk', value: kpis.riskDistribution.medium, color: '#F59E0B' },
-    { name: 'High Risk', value: kpis.riskDistribution.high, color: '#EF4444' },
-  ];
+  const pieData = kpis ? [
+    { name: 'Low Risk', value: kpis.riskDistribution?.low || 0, color: '#10B981' },
+    { name: 'Medium Risk', value: kpis.riskDistribution?.medium || 0, color: '#F59E0B' },
+    { name: 'High Risk', value: kpis.riskDistribution?.high || 0, color: '#EF4444' },
+  ] : [];
 
   // States formatted for Centerpiece Chart
   const sortedStates = [...statesData].sort((a, b) => b.flaggedCount - a.flaggedCount);
@@ -118,8 +133,37 @@ export default function NationalOverviewPage() {
         </div>
       </div>
 
-      {/* TOP ROW: SUMMARY KPI CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      {error && !data ? (
+        <ErrorState
+          title="Telemetry Link Offline"
+          message={error}
+          onRetry={loadData}
+        />
+      ) : !data ? (
+        <>
+          <CardSkeleton count={5} />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <MapSkeleton title="State Risk & Escalation Surveillance Matrix" />
+            </div>
+            <div className="space-y-6">
+              <ChartSkeleton title="National Risk Distribution" type="pie" height="h-44" />
+              <ListSkeleton count={3} title="Immediate State Attention" />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <TableSkeleton columns={4} rows={5} />
+            </div>
+            <div className="lg:col-span-1">
+              <ListSkeleton count={4} title="Real-Time Flag Alerts" />
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          {/* TOP ROW: SUMMARY KPI CARDS */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Card 1: Total Works Recommended */}
         <div className="bg-white border border-[#EFF3F4] rounded-2xl p-4 shadow-subtle hover:shadow-card transition-all">
           <div className="flex items-center justify-between text-slate-500 mb-2">
@@ -518,6 +562,8 @@ export default function NationalOverviewPage() {
         </div>
 
       </div>
+        </>
+      )}
 
     </div>
   );

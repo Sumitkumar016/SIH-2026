@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import TopNavbar from '../common/TopNavbar';
+import ErrorBoundary from '../common/loading/ErrorBoundary';
 import { stateApi } from '../../api/stateApi';
 import { useAuth } from '../../context/AuthContext';
 
@@ -36,7 +37,9 @@ export default function StateDashboardLayout() {
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <Outlet context={{ stateProfile, onOpenWorkDetail: handleOpenWorkDetail }} />
+        <ErrorBoundary>
+          <Outlet context={{ stateProfile, onOpenWorkDetail: handleOpenWorkDetail }} />
+        </ErrorBoundary>
       </main>
 
       <footer className="border-t border-[#EFF3F4] bg-[#F7F9F9] py-4 text-center text-xs text-slate-500">

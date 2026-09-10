@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import RiskBadge from '../../components/common/RiskBadge';
 import SearchBox from '../../components/common/SearchBox';
+import { ErrorState, EmptyState } from '../../components/common/loading';
 import { auditorApi } from '../../api/auditorApi';
 
 /**
@@ -25,6 +26,7 @@ import { auditorApi } from '../../api/auditorApi';
 export default function AuditorCaseQueuePage() {
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState({
     riskLevel: 'All',
@@ -33,16 +35,24 @@ export default function AuditorCaseQueuePage() {
   });
   const navigate = useNavigate();
 
-  useEffect(() => {
-    async function loadQueue() {
+  const loadQueue = async () => {
+    try {
       setLoading(true);
+      setError(null);
       const res = await auditorApi.getCaseQueue({
         search: searchQuery,
         ...filters,
       });
       setCases(res.data || []);
+    } catch (err) {
+      console.error('Failed to load auditor case queue:', err);
+      setError(err?.message || 'Failed to retrieve investigation cases.');
+    } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
     loadQueue();
   }, [searchQuery, filters]);
 
@@ -161,14 +171,40 @@ export default function AuditorCaseQueuePage() {
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-[#EFF3F4] text-xs">
-              {cases.length === 0 ? (
+            <tbody className={`divide-y divide-[#EFF3F4] text-xs ${loading && cases.length > 0 ? 'opacity-70 transition-opacity' : ''}`}>
+              {error ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <CheckCircle2 className="w-8 h-8 text-emerald-500" />
-                      <span className="font-medium text-sm">No high-risk investigation cases match the selected filters.</span>
-                    </div>
+                  <td colSpan={8} className="py-8">
+                    <ErrorState
+                      title="Failed to Load Investigation Cases"
+                      message={error}
+                      onRetry={loadQueue}
+                    />
+                  </td>
+                </tr>
+              ) : loading && cases.length === 0 ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td className="py-4 px-4"><div className="h-4 bg-slate-200 rounded w-20" /></td>
+                    <td className="py-4 px-4"><div className="h-4 bg-slate-200 rounded w-28" /></td>
+                    <td className="py-4 px-4"><div className="h-4 bg-slate-200 rounded w-24" /></td>
+                    <td className="py-3 px-3 text-center"><div className="h-6 bg-slate-200 rounded-full w-14 mx-auto" /></td>
+                    <td className="py-4 px-4"><div className="h-4 bg-slate-200 rounded w-44" /></td>
+                    <td className="py-3 px-3 text-center"><div className="h-5 bg-slate-200 rounded w-16 mx-auto" /></td>
+                    <td className="py-4 px-4 text-center"><div className="h-5 bg-slate-200 rounded w-20 mx-auto" /></td>
+                    <td className="py-4 px-4 text-right"><div className="h-4 bg-slate-200 rounded w-16 ml-auto" /></td>
+                  </tr>
+                ))
+              ) : cases.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-8">
+                    <EmptyState
+                      icon={CheckCircle2}
+                      title="No High-Risk Cases Found"
+                      message="No high-risk investigation cases match the selected filters."
+                      actionText="Reset Filters"
+                      onAction={handleResetFilters}
+                    />
                   </td>
                 </tr>
               ) : (

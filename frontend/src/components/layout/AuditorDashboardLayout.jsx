@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import TopNavbar from '../common/TopNavbar';
+import ErrorBoundary from '../common/loading/ErrorBoundary';
 import { auditorApi } from '../../api/auditorApi';
 
 /**
@@ -37,7 +38,9 @@ export default function AuditorDashboardLayout() {
 
       {/* Main Dynamic View Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <Outlet context={{ onOpenWorkDetail: handleOpenWorkDetail, refreshQueue: loadAlerts }} />
+        <ErrorBoundary>
+          <Outlet context={{ onOpenWorkDetail: handleOpenWorkDetail, refreshQueue: loadAlerts }} />
+        </ErrorBoundary>
       </main>
 
       {/* Footer */}

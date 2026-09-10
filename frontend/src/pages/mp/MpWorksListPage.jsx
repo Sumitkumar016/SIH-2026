@@ -11,6 +11,7 @@ import {
 import RiskBadge from '../../components/common/RiskBadge';
 import SearchBox from '../../components/common/SearchBox';
 import FilterBar from '../../components/common/FilterBar';
+import { ErrorState, EmptyState } from '../../components/common/loading';
 import { mpApi } from '../../api/mpApi';
 
 /**
@@ -23,6 +24,7 @@ export default function MpWorksListPage() {
   const [works, setWorks] = useState([]);
   const [mpProfile, setMpProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
@@ -36,17 +38,25 @@ export default function MpWorksListPage() {
   const [sortField, setSortField] = useState('recommendedDate');
   const [sortDirection, setSortDirection] = useState('desc');
 
-  useEffect(() => {
-    async function loadWorks() {
+  const loadWorks = async () => {
+    try {
       setLoading(true);
+      setError(null);
       const res = await mpApi.getMyWorks({
         search: searchQuery,
         ...filters,
       });
       setWorks(res.data || []);
       setMpProfile(res.mp);
+    } catch (err) {
+      console.error('Failed to load MP works list:', err);
+      setError(err?.message || 'Failed to retrieve constituency works register.');
+    } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
     loadWorks();
   }, [searchQuery, filters]);
 
@@ -199,20 +209,40 @@ export default function MpWorksListPage() {
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-[#EFF3F4] text-xs">
-              {sortedWorks.length === 0 ? (
+            <tbody className={`divide-y divide-[#EFF3F4] text-xs ${loading && works.length > 0 ? 'opacity-70 transition-opacity' : ''}`}>
+              {error ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <ShieldCheck className="w-8 h-8 text-slate-300" />
-                      <span className="font-medium text-sm">No works match the selected criteria.</span>
-                      <button
-                        onClick={handleResetFilters}
-                        className="text-xs text-[#1D9BF0] hover:underline"
-                      >
-                        Reset filters
-                      </button>
-                    </div>
+                  <td colSpan={8} className="py-8">
+                    <ErrorState
+                      title="Failed to Load Works Portfolio"
+                      message={error}
+                      onRetry={loadWorks}
+                    />
+                  </td>
+                </tr>
+              ) : loading && works.length === 0 ? (
+                Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td className="py-4 px-4"><div className="h-4 bg-slate-200 rounded w-20" /></td>
+                    <td className="py-4 px-4"><div className="h-4 bg-slate-200 rounded w-44 mb-1" /><div className="h-3 bg-slate-100 rounded w-24" /></td>
+                    <td className="py-4 px-4"><div className="h-4 bg-slate-200 rounded w-28" /></td>
+                    <td className="py-4 px-4 text-right"><div className="h-4 bg-slate-200 rounded w-16 ml-auto" /></td>
+                    <td className="py-4 px-4 text-right"><div className="h-4 bg-slate-200 rounded w-14 ml-auto" /></td>
+                    <td className="py-4 px-4 text-center"><div className="h-5 bg-slate-200 rounded w-16 mx-auto" /></td>
+                    <td className="py-4 px-4"><div className="h-4 bg-slate-200 rounded w-20" /></td>
+                    <td className="py-4 px-4 text-center"><div className="h-6 bg-slate-200 rounded-full w-14 mx-auto" /></td>
+                  </tr>
+                ))
+              ) : sortedWorks.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-8">
+                    <EmptyState
+                      icon={ShieldCheck}
+                      title="No Works Match Criteria"
+                      message="No works match the selected search or filter settings."
+                      actionText="Reset Filters"
+                      onAction={handleResetFilters}
+                    />
                   </td>
                 </tr>
               ) : (

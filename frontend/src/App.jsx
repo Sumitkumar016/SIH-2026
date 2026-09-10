@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import ChatbotWidget from './components/ChatbotWidget';
+import GlobalLoadingBar from './components/common/loading/GlobalLoadingBar';
 
 // Layouts
 import DashboardLayout from './components/layout/DashboardLayout';
@@ -71,6 +72,7 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <GlobalLoadingBar />
         <Routes>
           {/* Public Authentication Route */}
           <Route path="/login" element={<LoginPage />} />

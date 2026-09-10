@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import TopNavbar from '../common/TopNavbar';
+import ErrorBoundary from '../common/loading/ErrorBoundary';
 import { districtApi } from '../../api/districtApi';
 import { useAuth } from '../../context/AuthContext';
 
@@ -43,7 +44,9 @@ export default function DistrictDashboardLayout() {
 
       {/* Main Dynamic View Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <Outlet context={{ onOpenWorkDetail: handleOpenWorkDetail, districtProfile, refreshData: loadData }} />
+        <ErrorBoundary>
+          <Outlet context={{ onOpenWorkDetail: handleOpenWorkDetail, districtProfile, refreshData: loadData }} />
+        </ErrorBoundary>
       </main>
 
       {/* Footer */}

@@ -15,6 +15,26 @@ export function getAuthToken() {
   return inMemoryToken;
 }
 
+let activeRequestsCount = 0;
+const requestListeners = new Set();
+
+export function onApiActivityChange(listener) {
+  requestListeners.add(listener);
+  listener(activeRequestsCount > 0, activeRequestsCount);
+  return () => requestListeners.delete(listener);
+}
+
+function notifyActivity() {
+  const isBusy = activeRequestsCount > 0;
+  requestListeners.forEach((listener) => {
+    try {
+      listener(isBusy, activeRequestsCount);
+    } catch {
+      // ignore errors in listeners
+    }
+  });
+}
+
 /**
  * Shared authenticated fetch wrapper.
  * Prepends base URL, sets JSON headers, and attaches Bearer token if present.
@@ -47,23 +67,38 @@ export async function apiFetch(endpoint, options = {}) {
     body = JSON.stringify(body);
   }
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-    ...(body !== undefined ? { body } : {}),
-  });
+  activeRequestsCount++;
+  notifyActivity();
 
-  const data = await response.json().catch(() => null);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+  }, options.timeout || 8000);
 
-  if (!response.ok) {
-    const errorMsg = data?.message || `Request failed with status ${response.status}`;
-    const error = new Error(errorMsg);
-    error.status = response.status;
-    error.data = data;
-    throw error;
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: options.signal || controller.signal,
+      headers,
+      ...(body !== undefined ? { body } : {}),
+    });
+
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      const errorMsg = data?.message || `Request failed with status ${response.status}`;
+      const error = new Error(errorMsg);
+      error.status = response.status;
+      error.data = data;
+      throw error;
+    }
+
+    return data;
+  } finally {
+    clearTimeout(timeoutId);
+    activeRequestsCount = Math.max(0, activeRequestsCount - 1);
+    notifyActivity();
   }
-
-  return data;
 }
 
 export default apiFetch;

@@ -20,6 +20,7 @@ import {
   X,
 } from 'lucide-react';
 import SearchBox from '../components/common/SearchBox';
+import { ErrorState, EmptyState } from '../components/common/loading';
 import { ministryApi } from '../api/ministryApi';
 import { mpladsService } from '../api/mpladsService';
 
@@ -34,9 +35,10 @@ import { mpladsService } from '../api/mpladsService';
  */
 export default function MpPerformancePage() {
   const [mps, setMps] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [availableStates, setAvailableStates] = useState([]);
   const [availableDistricts, setAvailableDistricts] = useState([]);
-  const [loading, setLoading] = useState(true);
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
@@ -57,9 +59,10 @@ export default function MpPerformancePage() {
   const [expandedMpName, setExpandedMpName] = useState(null);
   const [selectedMpForModal, setSelectedMpForModal] = useState(null);
 
-  useEffect(() => {
-    async function loadMpData() {
+  const loadMpData = async () => {
+    try {
       setLoading(true);
+      setError(null);
       const apiCaller = ministryApi?.getMpLeaderboard || mpladsService.getMpLeaderboard;
       const res = await apiCaller({
         search: searchQuery,
@@ -76,8 +79,15 @@ export default function MpPerformancePage() {
         setAvailableDistricts(res.availableDistricts);
       }
       setCurrentPage(1);
+    } catch (err) {
+      console.error('Failed to load MP performance records:', err);
+      setError(err?.message || 'Failed to retrieve MP performance data.');
+    } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
     loadMpData();
   }, [searchQuery, filters, sortField, sortDirection]);
 
@@ -365,18 +375,40 @@ export default function MpPerformancePage() {
                 <th className="py-3 px-3 w-10 text-center"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#EFF3F4]">
-              {loading ? (
+            <tbody className={`divide-y divide-[#EFF3F4] ${loading && mps.length > 0 ? 'opacity-70 transition-opacity' : ''}`}>
+              {error ? (
                 <tr>
-                  <td colSpan="8" className="py-12 text-center">
-                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#1D9BF0]" />
-                    <p className="text-xs text-slate-500 mt-2">Loading MP Performance Records...</p>
+                  <td colSpan="8" className="py-8">
+                    <ErrorState
+                      title="Failed to Load MP Performance Records"
+                      message={error}
+                      onRetry={loadMpData}
+                    />
                   </td>
                 </tr>
+              ) : loading && mps.length === 0 ? (
+                Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td className="py-3 px-4"><div className="h-4 bg-slate-200 rounded w-32" /></td>
+                    <td className="py-3 px-4"><div className="h-4 bg-slate-200 rounded w-20" /></td>
+                    <td className="py-3 px-4"><div className="h-4 bg-slate-200 rounded w-24" /></td>
+                    <td className="py-3 px-4"><div className="h-4 bg-slate-200 rounded w-16" /></td>
+                    <td className="py-3 px-4"><div className="h-4 bg-slate-200 rounded w-14" /></td>
+                    <td className="py-3 px-4"><div className="h-3 bg-slate-200 rounded-full w-28" /></td>
+                    <td className="py-3 px-4 text-center"><div className="h-4 bg-slate-200 rounded w-12 mx-auto" /></td>
+                    <td className="py-3 px-3"><div className="h-4 bg-slate-200 rounded w-4" /></td>
+                  </tr>
+                ))
               ) : paginatedMps.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="py-12 text-center text-xs text-slate-500">
-                    No MP performance records match the active search and filter criteria.
+                  <td colSpan="8" className="py-8">
+                    <EmptyState
+                      icon={Award}
+                      title="No MP Performance Records Found"
+                      message="No records match the active search and filter criteria."
+                      actionText="Reset Filters"
+                      onAction={handleResetFilters}
+                    />
                   </td>
                 </tr>
               ) : (

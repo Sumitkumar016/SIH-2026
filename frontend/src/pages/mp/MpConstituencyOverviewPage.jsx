@@ -17,6 +17,11 @@ import {
   Layers,
 } from 'lucide-react';
 import RiskBadge from '../../components/common/RiskBadge';
+import {
+  CardSkeleton,
+  TableSkeleton,
+  ErrorState,
+} from '../../components/common/loading';
 import { mpApi } from '../../api/mpApi';
 
 /**
@@ -27,26 +32,36 @@ export default function MpConstituencyOverviewPage() {
   const { onOpenWorkDetail } = useOutletContext();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    async function loadOverview() {
+  const loadOverview = async () => {
+    try {
       setLoading(true);
+      setError(null);
       const res = await mpApi.getMyConstituencyOverview();
       setData(res);
+    } catch (err) {
+      console.error('Failed to load MP overview:', err);
+      setError(err?.message || 'Failed to retrieve constituency telemetry.');
+    } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
     loadOverview();
   }, []);
 
-  if (loading || !data) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1D9BF0]" />
-      </div>
-    );
-  }
-
-  const { mp, kpis, flaggedWorks } = data;
+  const mp = data?.mp || {
+    mpName: 'Hon. Member of Parliament',
+    house: 'Lok Sabha',
+    term: '18th Lok Sabha',
+    constituency: 'Patna Sahib',
+    state: 'Bihar',
+    district: 'Patna',
+  };
+  const kpis = data?.kpis;
+  const flaggedWorks = data?.flaggedWorks || [];
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -55,7 +70,7 @@ export default function MpConstituencyOverviewPage() {
       <div className="bg-[#F7F9F9] border border-[#EFF3F4] rounded-2xl p-5 shadow-subtle flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-start sm:items-center gap-4">
           <div className="w-14 h-14 rounded-2xl bg-white border border-[#EFF3F4] flex items-center justify-center text-[#1D9BF0] shadow-xs shrink-0 font-black text-xl font-mono">
-            {mp.mpName.split(' ').map(n => n[0]).join('').slice(0, 2)}
+            {mp.mpName ? mp.mpName.split(' ').map(n => n[0]).join('').slice(0, 2) : 'MP'}
           </div>
           <div>
             <div className="flex flex-wrap items-center gap-2">
@@ -93,8 +108,21 @@ export default function MpConstituencyOverviewPage() {
         </div>
       </div>
 
-      {/* SUMMARY KPI CARDS (SCOPED TO THIS MP ONLY) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      {error && !data ? (
+        <ErrorState
+          title="Constituency Telemetry Offline"
+          message={error}
+          onRetry={loadOverview}
+        />
+      ) : !data ? (
+        <>
+          <CardSkeleton count={5} />
+          <TableSkeleton columns={5} rows={5} />
+        </>
+      ) : (
+        <>
+          {/* SUMMARY KPI CARDS (SCOPED TO THIS MP ONLY) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         
         {/* Card 1: Allocated Amount */}
         <div className="bg-white border border-[#EFF3F4] rounded-2xl p-4 shadow-subtle hover:shadow-card transition-all">
@@ -311,6 +339,8 @@ export default function MpConstituencyOverviewPage() {
           </div>
         )}
       </div>
+        </>
+      )}
 
     </div>
   );

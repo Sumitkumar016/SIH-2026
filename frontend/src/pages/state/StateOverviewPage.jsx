@@ -26,6 +26,12 @@ import {
 } from 'recharts';
 import RiskBadge from '../../components/common/RiskBadge';
 import DistrictSummaryModal from '../../components/common/DistrictSummaryModal';
+import {
+  CardSkeleton,
+  TableSkeleton,
+  ChartSkeleton,
+  ErrorState,
+} from '../../components/common/loading';
 import { stateApi } from '../../api/stateApi';
 
 /**
@@ -38,6 +44,7 @@ export default function StateOverviewPage() {
   const { onOpenWorkDetail } = useOutletContext();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Drill-down District Summary Modal State
   const [activeDistrictSummary, setActiveDistrictSummary] = useState(null);
@@ -47,13 +54,21 @@ export default function StateOverviewPage() {
   const [sortField, setSortField] = useState('flaggedCount');
   const [sortDirection, setSortDirection] = useState('desc');
 
-  useEffect(() => {
-    async function loadOverview() {
+  const loadOverview = async () => {
+    try {
       setLoading(true);
+      setError(null);
       const res = await stateApi.getStateOverview();
       setData(res);
+    } catch (err) {
+      console.error('Failed to load state overview:', err);
+      setError(err?.message || 'Failed to retrieve state rollup telemetry.');
+    } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
     loadOverview();
   }, []);
 
@@ -85,15 +100,13 @@ export default function StateOverviewPage() {
     }
   };
 
-  if (loading || !data) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1D9BF0]" />
-      </div>
-    );
-  }
-
-  const { state, kpis } = data;
+  const state = data?.state || {
+    stateName: 'Bihar',
+    nodalDepartment: 'Department of Planning & Development',
+    headquarters: 'Patna',
+    totalDistricts: 38,
+  };
+  const kpis = data?.kpis;
 
   const handleSort = (field) => {
     if (sortField === field) {
@@ -139,8 +152,22 @@ export default function StateOverviewPage() {
         </div>
       </div>
 
-      {/* SUMMARY KPI CARDS (SCOPED TO THIS STATE) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {error && !data ? (
+        <ErrorState
+          title="State Rollup Telemetry Offline"
+          message={error}
+          onRetry={loadOverview}
+        />
+      ) : !data ? (
+        <>
+          <CardSkeleton count={4} />
+          <ChartSkeleton title="High-Risk Works Across Monitored Districts" type="bar" height="h-64" />
+          <TableSkeleton columns={6} rows={8} />
+        </>
+      ) : (
+        <>
+          {/* SUMMARY KPI CARDS (SCOPED TO THIS STATE) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
         {/* Card 1: Total Works */}
         <div className="bg-white border border-[#EFF3F4] rounded-2xl p-4 shadow-subtle hover:shadow-card transition-all">
@@ -427,6 +454,8 @@ export default function StateOverviewPage() {
           </span>
         </div>
       </div>
+        </>
+      )}
 
       {/* DISTRICT DRILL-DOWN POPUP MODAL */}
       <DistrictSummaryModal

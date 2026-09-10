@@ -18,6 +18,11 @@ import {
 } from 'lucide-react';
 import RiskBadge from '../../components/common/RiskBadge';
 import SearchBox from '../../components/common/SearchBox';
+import {
+  CardSkeleton,
+  TableSkeleton,
+  ErrorState,
+} from '../../components/common/loading';
 import { auditorApi } from '../../api/auditorApi';
 
 /**
@@ -34,6 +39,7 @@ export default function AuditorVendorToolPage() {
   const [searchTerm, setSearchTerm] = useState(initialVendor);
   const [vendorData, setVendorData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const sampleVendors = [
     'M/s Apex Infra Projects',
@@ -44,10 +50,21 @@ export default function AuditorVendorToolPage() {
   ];
 
   const fetchVendorData = async (name) => {
-    setLoading(true);
-    const data = await auditorApi.getVendorProfile(name);
-    setVendorData(data);
-    setLoading(false);
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await auditorApi.getVendorProfile(name);
+      if (data) {
+        setVendorData(data);
+      } else {
+        setError(`No contractor records found for "${name}".`);
+      }
+    } catch (err) {
+      console.error('Failed to load vendor profile:', err);
+      setError(err?.message || 'Failed to connect to contractor surveillance database.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -146,12 +163,19 @@ export default function AuditorVendorToolPage() {
         </div>
       </div>
 
-      {loading || !vendorData ? (
-        <div className="flex items-center justify-center min-h-[40vh]">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1D9BF0]" />
+      {error && !vendorData ? (
+        <ErrorState
+          title="Contractor Profile Not Found"
+          message={error}
+          onRetry={() => fetchVendorData(searchTerm)}
+        />
+      ) : !vendorData ? (
+        <div className="space-y-6">
+          <CardSkeleton count={5} />
+          <TableSkeleton columns={6} rows={5} />
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className={`space-y-6 ${loading ? 'opacity-70 transition-opacity' : ''}`}>
 
           {/* PATTERN ALERT BANNER (IF DETECTED) */}
           {vendorData.patternAlerts && vendorData.patternAlerts.length > 0 && (

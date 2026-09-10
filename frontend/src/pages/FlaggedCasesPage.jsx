@@ -13,6 +13,7 @@ import {
 import RiskBadge from '../components/common/RiskBadge';
 import SearchBox from '../components/common/SearchBox';
 import FilterBar from '../components/common/FilterBar';
+import { ErrorState, EmptyState } from '../components/common/loading';
 import { mpladsService } from '../api/mpladsService';
 
 /**
@@ -24,6 +25,7 @@ export default function FlaggedCasesPage() {
   const [searchParams] = useSearchParams();
   const [works, setWorks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Search & Filter State
   // Initialise state filter from ?state= query param if present (e.g. navigated from state risk matrix)
@@ -42,17 +44,25 @@ export default function FlaggedCasesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
-  useEffect(() => {
-    async function loadWorks() {
+  const loadWorks = async () => {
+    try {
       setLoading(true);
+      setError(null);
       const res = await mpladsService.getFlaggedWorks({
         search: searchQuery,
         ...filters,
       });
       setWorks(res.data || []);
       setCurrentPage(1); // reset to page 1 on filter change
+    } catch (err) {
+      console.error('Failed to load flagged works:', err);
+      setError(err?.message || 'Failed to retrieve flagged cases.');
+    } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
     loadWorks();
   }, [searchQuery, filters]);
 
@@ -232,20 +242,39 @@ export default function FlaggedCasesPage() {
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-[#EFF3F4] text-xs">
-              {paginatedWorks.length === 0 ? (
+            <tbody className={`divide-y divide-[#EFF3F4] text-xs ${loading && works.length > 0 ? 'opacity-70 transition-opacity' : ''}`}>
+              {error ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <ShieldCheck className="w-8 h-8 text-slate-300" />
-                      <span className="font-medium text-sm">No flagged works match the selected criteria.</span>
-                      <button
-                        onClick={handleResetFilters}
-                        className="text-xs text-[#1D9BF0] hover:underline"
-                      >
-                        Reset filters
-                      </button>
-                    </div>
+                  <td colSpan={7} className="py-8">
+                    <ErrorState
+                      title="Failed to Load Flagged Cases"
+                      message={error}
+                      onRetry={loadWorks}
+                    />
+                  </td>
+                </tr>
+              ) : loading && works.length === 0 ? (
+                Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td className="py-4 px-4"><div className="h-4 bg-slate-200 rounded w-20" /></td>
+                    <td className="py-4 px-4"><div className="h-4 bg-slate-200 rounded w-28 mb-1" /><div className="h-3 bg-slate-100 rounded w-16" /></td>
+                    <td className="py-4 px-4"><div className="h-4 bg-slate-200 rounded w-24 mb-1" /><div className="h-3 bg-slate-100 rounded w-14" /></td>
+                    <td className="py-4 px-4 text-center"><div className="h-6 bg-slate-200 rounded-full w-16 mx-auto" /></td>
+                    <td className="py-4 px-4"><div className="h-4 bg-slate-200 rounded w-48 mb-1" /><div className="h-3 bg-slate-100 rounded w-32" /></td>
+                    <td className="py-4 px-4 text-right"><div className="h-4 bg-slate-200 rounded w-14 ml-auto" /></td>
+                    <td className="py-4 px-4"><div className="h-5 bg-slate-200 rounded w-16" /></td>
+                  </tr>
+                ))
+              ) : paginatedWorks.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-8">
+                    <EmptyState
+                      icon={ShieldCheck}
+                      title="No Flagged Works Found"
+                      message="No works match the selected search and filter criteria."
+                      actionText="Reset All Filters"
+                      onAction={handleResetFilters}
+                    />
                   </td>
                 </tr>
               ) : (
