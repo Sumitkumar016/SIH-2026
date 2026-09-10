@@ -54,7 +54,7 @@ export async function getConstituencyOverview(mpId) {
               state_name: true,
             },
           },
-          risk_score: true,
+          current_risk_score: true,
           expenditures: {
             include: {
               vendor: {
@@ -142,14 +142,14 @@ export async function getConstituencyOverview(mpId) {
   // Flagged works: every Work belonging to this MP where RiskScore.riskLevel IN ('Medium','High')
   const flaggedRaw = mp.works.filter(
     (w) =>
-      w.risk_score &&
-      (w.risk_score.risk_level === "Medium" || w.risk_score.risk_level === "High")
+      w.current_risk_score &&
+      (w.current_risk_score.risk_level === "Medium" || w.current_risk_score.risk_level === "High")
   );
 
   // Order flagged works by calculated_at descending
   flaggedRaw.sort((a, b) => {
-    const dateA = new Date(a.risk_score.calculated_at || 0).getTime();
-    const dateB = new Date(b.risk_score.calculated_at || 0).getTime();
+    const dateA = new Date(a.current_risk_score.calculated_at || 0).getTime();
+    const dateB = new Date(b.current_risk_score.calculated_at || 0).getTime();
     return dateB - dateA;
   });
 
@@ -159,16 +159,16 @@ export async function getConstituencyOverview(mpId) {
     const vendorName = resolveVendorName(work.expenditures);
 
     let numericRiskScore = 0;
-    if (work.risk_score.risk_score !== null && work.risk_score.risk_score !== undefined) {
-      numericRiskScore = Number(work.risk_score.risk_score);
+    if (work.current_risk_score.risk_score !== null && work.current_risk_score.risk_score !== undefined) {
+      numericRiskScore = Number(work.current_risk_score.risk_score);
     }
 
     flaggedWorks.push({
       workId: work.work_id,
       category: work.category || "",
       description: work.description || "",
-      flagReason: work.risk_score.flag_reason || "",
-      riskLevel: work.risk_score.risk_level || "Medium",
+      flagReason: work.current_risk_score.flag_reason || "",
+      riskLevel: work.current_risk_score.risk_level || "Medium",
       riskScore: numericRiskScore,
       sanctionedAmount: Number(Number(work.sanctioned_amount || 0).toFixed(2)),
       vendorName,

@@ -30,7 +30,7 @@ export const mpApi = {
   },
 
   // Get My Constituency Overview (KPIs, utilization, and only this MP's flagged works)
-  async getMyConstituencyOverview(mpId = 'MP-BR-0412') {
+  async getMyConstituencyOverview() {
     try {
       const remote = await apiFetch('/api/mp/overview');
       if (remote && remote.mp && remote.kpis && Array.isArray(remote.flaggedWorks)) {
@@ -40,7 +40,7 @@ export const mpApi = {
       // Gracefully fall back to local seed/mock data when backend is not reached
     }
 
-    const mpInfo = await this.getMpProfile(mpId);
+    const mpInfo = await this.getMpProfile();
     // Filter works for this MP
     const mpWorks = mockWorksData.filter(
       (w) => w.mpName.toLowerCase() === mpInfo.mpName.toLowerCase()
@@ -86,7 +86,12 @@ export const mpApi = {
   },
 
   // Get full list of works for this MP with search & filters
-  async getMyWorks(mpId = 'MP-BR-0412', filters = {}) {
+  async getMyWorks(filters = {}) {
+    // If first argument is a string (legacy mpId passed), use second argument if available
+    if (typeof filters === 'string') {
+      filters = arguments[1] || {};
+    }
+
     try {
       const params = new URLSearchParams();
       if (filters.search) params.append('search', filters.search);

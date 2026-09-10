@@ -36,7 +36,7 @@ export async function getVerificationQueue(districtId) {
           mp_name: true,
         },
       },
-      risk_score: true,
+      current_risk_score: true,
       expenditures: {
         include: {
           vendor: {
@@ -112,8 +112,8 @@ export async function getVerificationQueue(districtId) {
     const escalationSource = latestEscalation?.escalation_source || null;
 
     let numericRiskScore = null;
-    if (w.risk_score?.risk_score !== null && w.risk_score?.risk_score !== undefined) {
-      numericRiskScore = Number(w.risk_score.risk_score);
+    if (w.current_risk_score?.risk_score !== null && w.current_risk_score?.risk_score !== undefined) {
+      numericRiskScore = Number(w.current_risk_score.risk_score);
     }
 
     const latestAsset = w.asset_creation?.[0];
@@ -124,11 +124,11 @@ export async function getVerificationQueue(districtId) {
       mpName,
       category: w.category || "",
       description: w.description || "",
-      flagReason: w.risk_score?.flag_reason || null,
+      flagReason: w.current_risk_score?.flag_reason || null,
       vendorName,
       completionDate,
       daysSinceCompletion,
-      riskLevel: w.risk_score?.risk_level || null,
+      riskLevel: w.current_risk_score?.risk_level || null,
       riskScore: numericRiskScore,
       evidenceReminderSent,
       escalationSource,

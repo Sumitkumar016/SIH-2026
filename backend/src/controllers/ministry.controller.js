@@ -63,6 +63,7 @@ export const getNationalOverview = asyncHandler(async (req, res) => {
     // Query 6: Total count of flagged works with Medium or High risk levels
     prisma.riskScore.count({
       where: {
+        is_current: true,
         risk_level: { in: ["Medium", "High"] },
       },
     }),
@@ -70,6 +71,9 @@ export const getNationalOverview = asyncHandler(async (req, res) => {
     // Query 7: Breakdown count of works across each risk level (Low, Medium, High)
     prisma.riskScore.groupBy({
       by: ["risk_level"],
+      where: {
+        is_current: true,
+      },
       _count: { _all: true },
     }),
 
@@ -91,7 +95,7 @@ export const getNationalOverview = asyncHandler(async (req, res) => {
     prisma.work.groupBy({
       by: ["state_id"],
       where: {
-        risk_score: { risk_level: "High" },
+        current_risk_score: { risk_level: "High" },
       },
       _count: { _all: true },
     }),
@@ -100,7 +104,7 @@ export const getNationalOverview = asyncHandler(async (req, res) => {
     prisma.work.groupBy({
       by: ["state_id"],
       where: {
-        risk_score: { risk_level: "Medium" },
+        current_risk_score: { risk_level: "Medium" },
       },
       _count: { _all: true },
     }),
@@ -109,7 +113,7 @@ export const getNationalOverview = asyncHandler(async (req, res) => {
     prisma.work.groupBy({
       by: ["state_id"],
       where: {
-        risk_score: { risk_level: "Low" },
+        current_risk_score: { risk_level: "Low" },
       },
       _count: { _all: true },
     }),
@@ -122,6 +126,7 @@ export const getNationalOverview = asyncHandler(async (req, res) => {
     // Query 14: Top 10 most recent Medium/High risk alerts with linked work, state, district, and MP details
     prisma.riskScore.findMany({
       where: {
+        is_current: true,
         risk_level: { in: ["Medium", "High"] },
       },
       orderBy: {
@@ -272,7 +277,7 @@ export const getFlaggedWorks = asyncHandler(async (req, res) => {
 
   // Base filter: Only include works that have a related RiskScore with risk_level IN ('Medium', 'High')
   const where = {
-    risk_score: {
+    current_risk_score: {
       risk_level: {
         in: ["Medium", "High"],
       },
@@ -281,7 +286,7 @@ export const getFlaggedWorks = asyncHandler(async (req, res) => {
 
   // 1. riskLevel filter (matches RiskScore.risk_level)
   if (riskLevel && riskLevel !== "All") {
-    where.risk_score.risk_level = riskLevel;
+    where.current_risk_score.risk_level = riskLevel;
   }
 
   // 2. state filter (matches State.state_name)
@@ -357,7 +362,7 @@ export const getFlaggedWorks = asyncHandler(async (req, res) => {
           district_name: true,
         },
       },
-      risk_score: {
+      current_risk_score: {
         select: {
           risk_score: true,
           risk_level: true,
@@ -389,7 +394,7 @@ export const getFlaggedWorks = asyncHandler(async (req, res) => {
   // Map to response shape and compute in-memory display status
   let data = works.map((work) => {
     const computedStatus = getDisplayStatus(work);
-    const rs = work.risk_score;
+    const rs = work.current_risk_score;
     const fraudRiskScore =
       rs?.risk_score !== null && rs?.risk_score !== undefined
         ? Number(rs.risk_score)
@@ -430,6 +435,8 @@ export const getFlaggedWorks = asyncHandler(async (req, res) => {
       category: work.category || "",
       fraudRiskScore,
       fraudRiskTier,
+      riskScore: fraudRiskScore,
+      riskLevel: fraudRiskTier,
       dataConfidence,
       flagReason: rs?.flag_reason || "",
       sanctionedAmount: Number(Number(work.sanctioned_amount || 0).toFixed(2)),

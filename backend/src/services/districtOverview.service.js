@@ -47,7 +47,7 @@ export async function getDistrictOverview(districtId) {
           constituency: true,
         },
       },
-      risk_score: true,
+      current_risk_score: true,
       expenditures: true,
       auditor_reports: {
         select: {
@@ -78,8 +78,8 @@ export async function getDistrictOverview(districtId) {
       totalCompletedCount += 1;
     }
     if (
-      w.risk_score &&
-      (w.risk_score.risk_level === "Medium" || w.risk_score.risk_level === "High")
+      w.current_risk_score &&
+      (w.current_risk_score.risk_level === "Medium" || w.current_risk_score.risk_level === "High")
     ) {
       totalFlaggedCount += 1;
     }
@@ -134,8 +134,8 @@ export async function getDistrictOverview(districtId) {
     for (const w of mpWorks) {
       if (w.status === "Completed") completed += 1;
       if (
-        w.risk_score &&
-        (w.risk_score.risk_level === "Medium" || w.risk_score.risk_level === "High")
+        w.current_risk_score &&
+        (w.current_risk_score.risk_level === "Medium" || w.current_risk_score.risk_level === "High")
       ) {
         flagged += 1;
       }
@@ -149,17 +149,17 @@ export async function getDistrictOverview(districtId) {
     const worksList = [];
     for (const w of mpWorks) {
       let numericRiskScore = null;
-      if (w.risk_score?.risk_score !== null && w.risk_score?.risk_score !== undefined) {
-        numericRiskScore = Number(w.risk_score.risk_score);
+      if (w.current_risk_score?.risk_score !== null && w.current_risk_score?.risk_score !== undefined) {
+        numericRiskScore = Number(w.current_risk_score.risk_score);
       }
 
       worksList.push({
         workId: w.work_id,
         category: w.category || "",
-        riskLevel: w.risk_score?.risk_level || null,
+        riskLevel: w.current_risk_score?.risk_level || null,
         riskScore: numericRiskScore,
         description: w.description || "",
-        flagReason: w.risk_score?.flag_reason || null,
+        flagReason: w.current_risk_score?.flag_reason || null,
         sanctionedAmount: Number(Number(w.sanctioned_amount || 0).toFixed(2)),
         status: getDisplayStatus(w),
       });

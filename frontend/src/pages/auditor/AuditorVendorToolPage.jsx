@@ -24,7 +24,7 @@ import { auditorApi } from '../../api/auditorApi';
  * PAGE 3: Vendor Cross-Reference Tool (KEY DIFFERENTIATOR FEATURE)
  * Route: /auditor/vendor
  * Purpose: Uncovers nationwide multi-state contractor collusion, repeat identical payments,
- * and same-day tender splitting signatures.
+ * and contract anomaly signatures.
  */
 export default function AuditorVendorToolPage() {
   const { onOpenWorkDetail } = useOutletContext();
@@ -266,7 +266,7 @@ export default function AuditorVendorToolPage() {
                   <span className="text-purple-700 font-mono underline">{vendorData.vendorName}</span>
                 </h3>
                 <span className="text-[11px] text-slate-500">
-                  Rows highlighted in red contain detected collusion signatures (same-day release or repeating round-figure amounts)
+                  Rows highlighted in red contain detected collusion signatures (repeating round-figure amounts)
                 </span>
               </div>
               <span className="text-xs font-mono font-bold bg-white border border-[#EFF3F4] px-2.5 py-1 rounded-lg">
@@ -282,7 +282,6 @@ export default function AuditorVendorToolPage() {
                     <th className="py-3 px-4">Recommending MP</th>
                     <th className="py-3 px-4">State & District</th>
                     <th className="py-3 px-4 text-right">Sanctioned Amount</th>
-                    <th className="py-3 px-4">Fund Release Date</th>
                     <th className="py-3 px-3 text-center">Risk Level</th>
                     <th className="py-3 px-4 min-w-[200px]">Detected Pattern Flag</th>
                   </tr>
@@ -322,13 +321,6 @@ export default function AuditorVendorToolPage() {
                         <td className="py-3.5 px-4 text-right font-mono font-bold text-[#0F1419]">
                           <span className={w.flags?.some(f => f.includes('Identical')) ? 'px-2 py-0.5 rounded bg-rose-100 text-rose-900 border border-rose-200' : ''}>
                             ₹{w.sanctionedAmount?.toFixed(2)}L
-                          </span>
-                        </td>
-
-                        {/* Fund Release Date */}
-                        <td className="py-3.5 px-4 font-mono text-slate-700">
-                          <span className={w.flags?.some(f => f.includes('Same-day')) ? 'px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-200 font-bold' : ''}>
-                            {w.fundReleasedDate || '2023-07-02'}
                           </span>
                         </td>
 

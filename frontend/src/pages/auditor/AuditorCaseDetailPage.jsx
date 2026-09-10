@@ -395,7 +395,7 @@ export default function AuditorCaseDetailPage() {
           Full Work Lifecycle Statutory Timeline
         </h3>
 
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 relative">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 relative">
           <div className="p-3 rounded-xl bg-[#F7F9F9] border border-[#EFF3F4]">
             <div className="text-[10px] font-bold uppercase tracking-wider text-[#1D9BF0]">1. Recommended</div>
             <div className="text-xs font-bold text-[#0F1419] font-mono mt-1">{caseData.recommendedDate || '2023-04-12'}</div>
@@ -408,14 +408,8 @@ export default function AuditorCaseDetailPage() {
             <div className="text-[11px] text-slate-500">By District Collectorate</div>
           </div>
 
-          <div className="p-3 rounded-xl bg-[#F7F9F9] border border-[#EFF3F4]">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-[#1D9BF0]">3. Fund Released</div>
-            <div className="text-xs font-bold text-[#0F1419] font-mono mt-1">{caseData.fundReleasedDate || '2023-07-02'}</div>
-            <div className="text-[11px] text-slate-500">First Installment Disbursed</div>
-          </div>
-
           <div className="p-3 rounded-xl bg-rose-50 border border-rose-200">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-rose-800">4. Target Completion</div>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-rose-800">3. Target Completion</div>
             <div className="text-xs font-bold text-rose-700 font-mono mt-1">{caseData.completionDate || '2024-02-15'}</div>
             <div className="text-[11px] text-rose-600 font-semibold">{caseData.status}</div>
           </div>

@@ -129,16 +129,7 @@ export const auditorApi = {
     const distinctStates = Array.from(new Set(vendorWorks.map(w => w.state)));
     const highRiskCount = vendorWorks.filter(w => w.riskLevel === 'High' || (w.riskScore && w.riskScore >= 70)).length;
 
-    // Pattern Detection 1: Same-day multiple payments / releases
-    const dateCounts = {};
-    vendorWorks.forEach(w => {
-      if (w.fundReleasedDate) {
-        dateCounts[w.fundReleasedDate] = (dateCounts[w.fundReleasedDate] || 0) + 1;
-      }
-    });
-    const sameDayDates = Object.keys(dateCounts).filter(d => dateCounts[d] > 1);
-
-    // Pattern Detection 2: Repeating round-figure amounts (e.g. 2+ works with exact same amount)
+    // Pattern Detection: Repeating round-figure amounts (e.g. 2+ works with exact same amount)
     const amountCounts = {};
     vendorWorks.forEach(w => {
       const amt = w.sanctionedAmount?.toFixed(2);
@@ -152,14 +143,12 @@ export const auditorApi = {
     const enrichedWorks = vendorWorks.map(w => {
       const amtStr = w.sanctionedAmount?.toFixed(2);
       const isRepeatedAmount = repeatedAmounts.includes(amtStr);
-      const isSameDayRelease = w.fundReleasedDate && sameDayDates.includes(w.fundReleasedDate);
 
       return {
         ...w,
-        isRedFlagged: isRepeatedAmount || isSameDayRelease || w.riskScore >= 70,
+        isRedFlagged: isRepeatedAmount || w.riskScore >= 70,
         flags: [
           ...(isRepeatedAmount ? [`Identical ₹${amtStr}L Contract`] : []),
-          ...(isSameDayRelease ? [`Same-day Release (${w.fundReleasedDate})`] : []),
         ],
       };
     });
@@ -170,11 +159,6 @@ export const auditorApi = {
       const maxRepeat = Math.max(...repeatedAmounts.map(a => amountCounts[a]));
       patternAlerts.push(
         `⚠️ Round-Figure Anomaly: ${maxRepeat} works awarded with identical ₹${repeatedAmounts[0]} Lakh amounts across ${distinctStates.length} states.`
-      );
-    }
-    if (sameDayDates.length > 0) {
-      patternAlerts.push(
-        `⚠️ Simultaneous Disbursement: Multiple contract tranches disbursed on the exact same date (${sameDayDates.join(', ')}) without staggered technical milestones.`
       );
     }
     if (distinctStates.length >= 3 && highRiskCount >= 2) {
@@ -205,7 +189,7 @@ export const auditorApi = {
     try {
       const res = await apiFetch(`/api/auditor/case/${encodeURIComponent(workId)}/report`, {
         method: 'POST',
-        body: reportData,
+        body: JSON.stringify(reportData),
       });
       if (res) {
         const target = mockWorksData.find(w => w.workId.toLowerCase() === workId.toLowerCase());
@@ -240,7 +224,7 @@ export const auditorApi = {
     try {
       const res = await apiFetch(`/api/auditor/case/${encodeURIComponent(workId)}/asset`, {
         method: 'POST',
-        body: assetData,
+        body: JSON.stringify(assetData),
       });
       if (res) {
         const target = mockWorksData.find(w => w.workId.toLowerCase() === workId.toLowerCase());
@@ -267,7 +251,7 @@ export const auditorApi = {
     try {
       const res = await apiFetch(`/api/auditor/case/${encodeURIComponent(workId)}/action`, {
         method: 'POST',
-        body: { actionType, note },
+        body: JSON.stringify({ actionType, note }),
       });
       if (res && res.success) {
         const target = mockWorksData.find(w => w.workId.toLowerCase() === workId.toLowerCase());

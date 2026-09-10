@@ -105,11 +105,11 @@ export async function getCaseById(workId) {
     throw error;
   }
 
-  // 2. Fetch raw work fields (fund_released_date, description, risk_score)
+  // 2. Fetch raw work fields (description, current_risk_score)
   const rawWork = await prisma.work.findUnique({
     where: { work_id: workId },
     include: {
-      risk_score: true,
+      current_risk_score: true,
     },
   });
 
@@ -127,7 +127,7 @@ export async function getCaseById(workId) {
       getLatestWorkProgress(workId),
     ]);
 
-  const rs = rawWork.risk_score;
+  const rs = rawWork.current_risk_score;
 
   // Resolve numeric risk score
   let riskScore = 0;
@@ -198,14 +198,9 @@ export async function getCaseById(workId) {
     };
   }
 
-  const fundReleasedDate = rawWork.fund_released_date
-    ? new Date(rawWork.fund_released_date).toISOString()
-    : null;
-
   return {
     ...baseWorkDetail,
     description: rawWork.description || baseWorkDetail.description || "",
-    fundReleasedDate,
     riskScore,
     riskLevel,
     riskFactorBreakdown,

@@ -35,9 +35,22 @@ export async function apiFetch(endpoint, options = {}) {
     headers['Authorization'] = `Bearer ${inMemoryToken}`;
   }
 
+  let body = options.body;
+  if (
+    body !== undefined &&
+    body !== null &&
+    typeof body === 'object' &&
+    typeof body !== 'string' &&
+    !(body instanceof FormData) &&
+    !(body instanceof Blob)
+  ) {
+    body = JSON.stringify(body);
+  }
+
   const response = await fetch(url, {
     ...options,
     headers,
+    ...(body !== undefined ? { body } : {}),
   });
 
   const data = await response.json().catch(() => null);

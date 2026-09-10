@@ -6,13 +6,13 @@ model Work {
   state_id               Int             @map("state_id")
   category               String?         @map("category") @db.VarChar(100)
   description            String?         @map("description") @db.Text
-  sanctioned_amount      Decimal         @map("sanctioned_amount") @db.Decimal(15, 2)
+  recommended_amount     Decimal?        @map("recommended_amount") @db.Decimal(15, 2)
+  sanctioned_amount      Decimal?        @map("sanctioned_amount") @db.Decimal(15, 2)
   recommended_date       DateTime?       @map("recommended_date") @db.Date
   sanction_date          DateTime?       @map("sanction_date") @db.Date
-  fund_released_date     DateTime?       @map("fund_released_date") @db.Date
   completion_date        DateTime?       @map("completion_date") @db.Date
-  expected_duration_days Int?            @default(365) @map("expected_duration_days")
   status                 WorkStatus      @map("status")
+  current_risk_score_id  Int?            @unique @map("current_risk_score_id")
   created_at             DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
   updated_at             DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -25,7 +25,8 @@ model Work {
   expenditures           Expenditure[]
   work_progress          WorkProgress[]
   asset_creation         AssetCreation[]
-  risk_score             RiskScore?
+  current_risk_score     RiskScore?      @relation("WorkCurrentRiskScore", fields: [current_risk_score_id], references: [risk_id], onDelete: SetNull)
+  risk_score_history     RiskScore[]     @relation("RiskScoreHistory")
   prediction             Prediction?
   escalations            Escalation[]
   auditor_reports        AuditorReport[]

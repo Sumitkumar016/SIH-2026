@@ -81,9 +81,10 @@ export function getDisplayStatus(work) {
   const isPastCompletion =
     work.completion_date && new Date(work.completion_date).getTime() < Date.now();
 
-  const delaySlippage = Number(work.risk_score?.delay_slippage_pct || 0);
+  const rs = work.current_risk_score || work.risk_score;
+  const delaySlippage = Number(rs?.delay_slippage_pct || 0);
 
-  const flagReasonLower = String(work.risk_score?.flag_reason || "").toLowerCase();
+  const flagReasonLower = String(rs?.flag_reason || "").toLowerCase();
   const isFlaggedForDelay =
     flagReasonLower.includes("delay") ||
     flagReasonLower.includes("stall") ||

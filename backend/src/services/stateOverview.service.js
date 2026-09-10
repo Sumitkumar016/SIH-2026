@@ -43,7 +43,7 @@ export async function getStateOverview(stateId) {
           district_name: true,
         },
       },
-      risk_score: true,
+      current_risk_score: true,
     },
   });
 
@@ -72,14 +72,14 @@ export async function getStateOverview(stateId) {
     }
 
     if (
-      w.risk_score &&
-      (w.risk_score.risk_level === "Medium" || w.risk_score.risk_level === "High")
+      w.current_risk_score &&
+      (w.current_risk_score.risk_level === "Medium" || w.current_risk_score.risk_level === "High")
     ) {
       totalFlaggedCount += 1;
     }
 
-    if (w.risk_score?.risk_score !== null && w.risk_score?.risk_score !== undefined) {
-      totalRiskScoreSum += Number(w.risk_score.risk_score);
+    if (w.current_risk_score?.risk_score !== null && w.current_risk_score?.risk_score !== undefined) {
+      totalRiskScoreSum += Number(w.current_risk_score.risk_score);
       scoredWorksCount += 1;
     }
   }
@@ -132,14 +132,14 @@ export async function getStateOverview(stateId) {
       if (w.status === "Completed") dCompleted += 1;
 
       if (
-        w.risk_score &&
-        (w.risk_score.risk_level === "Medium" || w.risk_score.risk_level === "High")
+        w.current_risk_score &&
+        (w.current_risk_score.risk_level === "Medium" || w.current_risk_score.risk_level === "High")
       ) {
         flaggedCount += 1;
       }
 
-      if (w.risk_score?.risk_score !== null && w.risk_score?.risk_score !== undefined) {
-        dRiskSum += Number(w.risk_score.risk_score);
+      if (w.current_risk_score?.risk_score !== null && w.current_risk_score?.risk_score !== undefined) {
+        dRiskSum += Number(w.current_risk_score.risk_score);
         dScoredCount += 1;
       }
     }
@@ -251,7 +251,7 @@ export async function getDistrictSummary(stateId, districtName) {
           state_name: true,
         },
       },
-      risk_score: true,
+      current_risk_score: true,
       prediction: true,
       auditor_reports: {
         orderBy: {
@@ -304,7 +304,7 @@ export async function getDistrictSummary(stateId, districtName) {
       completed += 1;
     }
 
-    const rLevel = w.risk_score?.risk_level;
+    const rLevel = w.current_risk_score?.risk_level;
     if (rLevel === "High") high += 1;
     if (rLevel === "Medium") medium += 1;
     if (rLevel === "Low") low += 1;
@@ -313,8 +313,8 @@ export async function getDistrictSummary(stateId, districtName) {
       flaggedCount += 1;
     }
 
-    if (w.risk_score?.risk_score !== null && w.risk_score?.risk_score !== undefined) {
-      totalRiskScoreSum += Number(w.risk_score.risk_score);
+    if (w.current_risk_score?.risk_score !== null && w.current_risk_score?.risk_score !== undefined) {
+      totalRiskScoreSum += Number(w.current_risk_score.risk_score);
       scoredCount += 1;
     }
   }
@@ -326,8 +326,8 @@ export async function getDistrictSummary(stateId, districtName) {
 
   // 4. Top 3 highest-risk projects in this district
   const sortedWorks = [...works].sort((a, b) => {
-    const scoreA = Number(a.risk_score?.risk_score || 0);
-    const scoreB = Number(b.risk_score?.risk_score || 0);
+    const scoreA = Number(a.current_risk_score?.risk_score || 0);
+    const scoreB = Number(b.current_risk_score?.risk_score || 0);
     return scoreB - scoreA;
   });
 

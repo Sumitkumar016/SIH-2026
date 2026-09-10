@@ -6,7 +6,6 @@ model Expenditure {
   amount         Decimal  @map("amount") @db.Decimal(15, 2)
   payment_date   DateTime @map("payment_date") @db.Date
   payment_status String?  @map("payment_status") @db.VarChar(50)
-  released_by    String?  @map("released_by") @db.VarChar(150)
 
   // Relationships
   work           Work     @relation(fields: [work_id], references: [work_id], onDelete: Cascade)

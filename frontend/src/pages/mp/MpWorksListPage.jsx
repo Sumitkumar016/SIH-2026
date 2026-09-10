@@ -39,7 +39,7 @@ export default function MpWorksListPage() {
   useEffect(() => {
     async function loadWorks() {
       setLoading(true);
-      const res = await mpApi.getMyWorks('MP-BR-0412', {
+      const res = await mpApi.getMyWorks({
         search: searchQuery,
         ...filters,
       });

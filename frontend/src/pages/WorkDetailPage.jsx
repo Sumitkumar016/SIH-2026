@@ -95,12 +95,21 @@ export default function WorkDetailPage() {
     let isMounted = true;
 
     async function loadWork() {
-      // If work is already in state with matching ID, no need to show loading
-      if (work && work.workId?.toLowerCase() === workId?.toLowerCase()) {
+      // Check if the work currently in state is already a full detail object
+      const hasFullDetail =
+        work &&
+        work.workId?.toLowerCase() === workId?.toLowerCase() &&
+        (Boolean(work.riskFactorBreakdown) ||
+          Boolean(work.progressHistory) ||
+          Boolean(work.expenditureBreakdown) ||
+          Boolean(work.contractorName) ||
+          Boolean(work.sanctionOrderNumber));
+
+      if (hasFullDetail) {
         return;
       }
 
-      setLoading(true);
+      if (!work) setLoading(true);
       setNotFound(false);
 
       try {
@@ -112,13 +121,13 @@ export default function WorkDetailPage() {
         if (isMounted) {
           if (data) {
             setWork(data);
-          } else {
+          } else if (!work) {
             setNotFound(true);
           }
         }
       } catch (err) {
         console.error('Failed to load work details:', err);
-        if (isMounted) setNotFound(true);
+        if (isMounted && !work) setNotFound(true);
       } finally {
         if (isMounted) setLoading(false);
       }

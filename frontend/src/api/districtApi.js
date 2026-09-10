@@ -170,7 +170,7 @@ export const districtApi = {
     try {
       const res = await apiFetch(`/api/district/verification/${encodeURIComponent(workId)}/request-evidence`, {
         method: 'POST',
-        body: { note },
+        body: JSON.stringify({ note }),
       });
       if (res && res.success) {
         const target = mockWorksData.find(w => w.workId === workId);
@@ -199,7 +199,7 @@ export const districtApi = {
     try {
       const res = await apiFetch(`/api/district/verification/${encodeURIComponent(workId)}/escalate`, {
         method: 'POST',
-        body: { note },
+        body: JSON.stringify({ note }),
       });
       if (res && res.success) {
         const target = mockWorksData.find(w => w.workId.toLowerCase() === workId.toLowerCase());

@@ -96,7 +96,7 @@ export async function getPredictiveWatchlist(filters = {}) {
         },
       },
       prediction: true,
-      risk_score: {
+      current_risk_score: {
         select: {
           risk_score: true,
           risk_level: true,

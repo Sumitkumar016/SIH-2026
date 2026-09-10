@@ -80,7 +80,7 @@ export async function getMyWorks(mpId, filters = {}) {
 
   // Filter by risk level
   if (riskLevel && riskLevel !== "All") {
-    where.risk_score = {
+    where.current_risk_score = {
       risk_level: riskLevel,
     };
   }
@@ -99,7 +99,7 @@ export async function getMyWorks(mpId, filters = {}) {
   const works = await prisma.work.findMany({
     where,
     include: {
-      risk_score: true,
+      current_risk_score: true,
       expenditures: {
         include: {
           vendor: {
@@ -138,7 +138,7 @@ export async function getMyWorks(mpId, filters = {}) {
   const data = [];
 
   for (const work of filteredWorks) {
-    const rs = work.risk_score;
+    const rs = work.current_risk_score;
     const vendorName = resolveVendorName(work.expenditures);
 
     let numericRiskScore = null;

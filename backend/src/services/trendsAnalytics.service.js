@@ -132,7 +132,7 @@ export async function getCategoryAnomalies() {
     by: ["category"],
     where: {
       category: { not: null },
-      risk_score: {
+      current_risk_score: {
         risk_level: { in: ["Medium", "High"] },
       },
     },
@@ -188,7 +188,7 @@ export async function getTopVendors() {
                   state_name: true,
                 },
               },
-              risk_score: {
+              current_risk_score: {
                 select: {
                   risk_level: true,
                 },
@@ -217,7 +217,7 @@ export async function getTopVendors() {
           if (stateName) {
             stateSet.add(stateName);
           }
-          const riskLevel = exp.work.risk_score?.risk_level;
+          const riskLevel = exp.work.current_risk_score?.risk_level;
           const isFlagged = riskLevel === "Medium" || riskLevel === "High";
           workMap.set(wId, {
             stateName,
@@ -318,7 +318,7 @@ export async function getStateComparison() {
       by: ["state_id"],
       where: {
         state_id: { in: stateIds },
-        risk_score: {
+        current_risk_score: {
           risk_level: { in: ["Medium", "High"] },
         },
       },

@@ -90,7 +90,7 @@ export async function getMpLeaderboard(filters = {}) {
               amount: true,
             },
           },
-          risk_score: {
+          current_risk_score: {
             select: {
               delay_slippage_pct: true,
               flag_reason: true,

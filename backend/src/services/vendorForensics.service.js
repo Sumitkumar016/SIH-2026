@@ -9,7 +9,6 @@ import { prisma } from "../config/db.js";
 
 // Named thresholds for pattern detection rules (easy to tune)
 export const ROUND_FIGURE_REPEAT_THRESHOLD = 3;
-export const SAME_DAY_RELEASE_THRESHOLD = 2;
 export const SINGLE_STATE_MIN_WORKS_THRESHOLD = 5;
 
 /**
@@ -78,7 +77,7 @@ export async function getVendorProfile(searchName) {
               state_name: true,
             },
           },
-          risk_score: true,
+          current_risk_score: true,
         },
       },
     },
@@ -113,7 +112,7 @@ export async function getVendorProfile(searchName) {
   const statesSet = new Set();
 
   for (const w of works) {
-    if (w.risk_score && w.risk_score.risk_level === "High") {
+    if (w.current_risk_score && w.current_risk_score.risk_level === "High") {
       highRiskCount += 1;
     }
     if (w.mp?.mp_name) mpsSet.add(w.mp.mp_name);
@@ -157,31 +156,7 @@ export async function getVendorProfile(searchName) {
     }
   }
 
-  // RULE 2: SAME_DAY_RELEASE (2+ different works with funds released on the exact same date)
-  const releaseDateToWorksMap = new Map();
-  for (const w of works) {
-    if (w.fund_released_date) {
-      const dateKey = new Date(w.fund_released_date).toISOString().split("T")[0];
-      if (!releaseDateToWorksMap.has(dateKey)) {
-        releaseDateToWorksMap.set(dateKey, []);
-      }
-      releaseDateToWorksMap.get(dateKey).push(w.work_id);
-    }
-  }
-
-  for (const [dateStr, workIds] of releaseDateToWorksMap.entries()) {
-    if (workIds.length >= SAME_DAY_RELEASE_THRESHOLD) {
-      const flagText = `Same-day Release (${workIds.length} contracts)`;
-      for (const wid of workIds) {
-        workFlagsMap.get(wid).push(flagText);
-      }
-      patternAlerts.push(
-        `Simultaneous Disbursement: Multiple contract tranches (${workIds.length} works) released on the exact same date (${dateStr}).`
-      );
-    }
-  }
-
-  // RULE 3: SINGLE_STATE_CONCENTRATION (exclusive operation in 1 state across 5+ works)
+  // RULE 2: SINGLE_STATE_CONCENTRATION (exclusive operation in 1 state across 5+ works)
   if (distinctStates.length === 1 && totalWorks >= SINGLE_STATE_MIN_WORKS_THRESHOLD) {
     patternAlerts.push(
       `Vendor operates exclusively within ${distinctStates[0]} across ${totalWorks} contracts — check for regional favoritism.`
@@ -192,13 +167,10 @@ export async function getVendorProfile(searchName) {
   const formattedWorks = works.map((w) => {
     const flags = workFlagsMap.get(w.work_id) || [];
     const isRedFlagged = flags.length > 0;
-    const fundReleasedDate = w.fund_released_date
-      ? new Date(w.fund_released_date).toISOString().split("T")[0]
-      : null;
 
     let numericRiskScore = null;
-    if (w.risk_score?.risk_score !== null && w.risk_score?.risk_score !== undefined) {
-      numericRiskScore = Number(w.risk_score.risk_score);
+    if (w.current_risk_score?.risk_score !== null && w.current_risk_score?.risk_score !== undefined) {
+      numericRiskScore = Number(w.current_risk_score.risk_score);
     }
 
     return {
@@ -208,8 +180,7 @@ export async function getVendorProfile(searchName) {
       state: w.state?.state_name || "",
       district: w.district?.district_name || "",
       sanctionedAmount: Number(Number(w.sanctioned_amount || 0).toFixed(2)),
-      fundReleasedDate,
-      riskLevel: w.risk_score?.risk_level || null,
+      riskLevel: w.current_risk_score?.risk_level || null,
       riskScore: numericRiskScore,
       flags,
       isRedFlagged,
@@ -242,7 +213,7 @@ export async function getVendorProfile(searchName) {
 
 export default {
   ROUND_FIGURE_REPEAT_THRESHOLD,
-  SAME_DAY_RELEASE_THRESHOLD,
+  // SAME_DAY_RELEASE_THRESHOLD,
   SINGLE_STATE_MIN_WORKS_THRESHOLD,
   getVendorProfile,
 };

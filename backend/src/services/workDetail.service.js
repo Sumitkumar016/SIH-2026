@@ -31,7 +31,7 @@ function generateRiskTrajectory(currentScore, predictedScore) {
  * @returns {Object}
  */
 export function flattenWork(work) {
-  const rs = work.risk_score;
+  const rs = work.current_risk_score;
   const pred = work.prediction;
 
   // 1. Resolve vendor name and total expenditure from expenditures
@@ -149,6 +149,19 @@ export function flattenWork(work) {
     auditorReport,
     assetCreation,
     latestAssetVerificationStatus,
+    riskScoreHistory: Array.isArray(work.risk_score_history)
+      ? work.risk_score_history.map((r) => ({
+          riskScore:
+            r.risk_score !== null && r.risk_score !== undefined
+              ? Number(r.risk_score)
+              : null,
+          riskLevel: r.risk_level || null,
+          flagReason: r.flag_reason || null,
+          calculatedAt: r.calculated_at
+            ? new Date(r.calculated_at).toISOString()
+            : null,
+        }))
+      : [],
   };
 
   // 7. Attach RiskScore fields
@@ -257,7 +270,12 @@ export async function getWorkRaw(workId) {
           state_name: true,
         },
       },
-      risk_score: true,
+      current_risk_score: true,
+      risk_score_history: {
+        orderBy: {
+          calculated_at: "asc",
+        },
+      },
       prediction: true,
       auditor_reports: {
         orderBy: {

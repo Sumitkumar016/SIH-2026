@@ -64,7 +64,7 @@ export async function getCaseQueue(filters = {}) {
 
   // 1. Base query: only Medium and High risk cases nationwide
   const where = {
-    risk_score: {
+    current_risk_score: {
       risk_level: {
         in: ["Medium", "High"],
       },
@@ -73,7 +73,7 @@ export async function getCaseQueue(filters = {}) {
 
   // Filter by risk level if specified
   if (riskLevel && riskLevel !== "All") {
-    where.risk_score.risk_level = riskLevel;
+    where.current_risk_score.risk_level = riskLevel;
   }
 
   // 2. Fetch qualifying works with linked details
@@ -98,7 +98,7 @@ export async function getCaseQueue(filters = {}) {
           state_name: true,
         },
       },
-      risk_score: true,
+      current_risk_score: true,
       auditor_reports: {
         orderBy: [
           { submitted_date: "desc" },
@@ -167,8 +167,8 @@ export async function getCaseQueue(filters = {}) {
     }
 
     let numericRiskScore = 0;
-    if (w.risk_score?.risk_score !== null && w.risk_score?.risk_score !== undefined) {
-      numericRiskScore = Number(w.risk_score.risk_score);
+    if (w.current_risk_score?.risk_score !== null && w.current_risk_score?.risk_score !== undefined) {
+      numericRiskScore = Number(w.current_risk_score.risk_score);
     }
 
     results.push({
@@ -177,9 +177,9 @@ export async function getCaseQueue(filters = {}) {
       category: w.category || "",
       state: w.state?.state_name || "",
       district: w.district?.district_name || "",
-      riskLevel: w.risk_score?.risk_level || "Medium",
+      riskLevel: w.current_risk_score?.risk_level || "Medium",
       riskScore: numericRiskScore,
-      flagReason: w.risk_score?.flag_reason || "",
+      flagReason: w.current_risk_score?.flag_reason || "",
       caseStatus: derivedCaseStatus,
       escalationSource: derivedEscalationSource,
       escalationNote: derivedEscalationNote,
