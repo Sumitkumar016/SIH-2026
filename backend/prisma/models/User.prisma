@@ -11,9 +11,10 @@ model User {
   
 
   // Relationships
-  mp          Mp?       @relation(fields: [mp_id], references: [mp_id], onDelete: SetNull)
-  district    District? @relation(fields: [district_id], references: [district_id], onDelete: SetNull)
-  state       State?    @relation(fields: [state_id], references: [state_id], onDelete: SetNull)
+  mp          Mp?          @relation(fields: [mp_id], references: [mp_id], onDelete: SetNull)
+  district    District?    @relation(fields: [district_id], references: [district_id], onDelete: SetNull)
+  state       State?       @relation(fields: [state_id], references: [state_id], onDelete: SetNull)
+  escalations Escalation[]
 
   @@index([mp_id])
   @@index([district_id])

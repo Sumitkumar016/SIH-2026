@@ -1,21 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import TopNavbar from '../common/TopNavbar';
-import WorkDetailModal from '../common/WorkDetailModal';
 import { districtApi } from '../../api/districtApi';
 import { useAuth } from '../../context/AuthContext';
 
 /**
  * DistrictDashboardLayout Component
  * Wraps all District Authority views with TopNavbar configured for District role,
- * and manages the shared WorkDetailModal.
+ * and manages case drill-down navigation.
  */
 export default function DistrictDashboardLayout() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [districtProfile, setDistrictProfile] = useState(null);
   const [queueCount, setQueueCount] = useState(0);
-  const [selectedWork, setSelectedWork] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const loadData = async () => {
     const profile = await districtApi.getDistrictProfile(user?.districtId);
@@ -29,13 +27,8 @@ export default function DistrictDashboardLayout() {
   }, [user]);
 
   const handleOpenWorkDetail = (work) => {
-    setSelectedWork(work);
-    setIsModalOpen(true);
-  };
-
-  const handleCloseWorkDetail = () => {
-    setIsModalOpen(false);
-    setSelectedWork(null);
+    if (!work?.workId) return;
+    navigate(`/district/cases/${work.workId}`, { state: { work } });
   };
 
   return (
@@ -64,14 +57,6 @@ export default function DistrictDashboardLayout() {
           </span>
         </div>
       </footer>
-
-      {/* Shared WorkDetailModal */}
-      <WorkDetailModal
-        work={selectedWork}
-        isOpen={isModalOpen}
-        onClose={handleCloseWorkDetail}
-        allowJustification={false}
-      />
     </div>
   );
 }

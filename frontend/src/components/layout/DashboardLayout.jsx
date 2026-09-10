@@ -1,18 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import TopNavbar from '../common/TopNavbar';
-import WorkDetailModal from '../common/WorkDetailModal';
 import { mpladsService } from '../../api/mpladsService';
 
 /**
  * DashboardLayout Component
  * Wraps all Ministry views with shared header, notification streams,
- * and centralized WorkDetailModal trigger context.
+ * and centralized case navigation context.
  */
 export default function DashboardLayout() {
+  const navigate = useNavigate();
   const [alerts, setAlerts] = useState([]);
-  const [selectedWork, setSelectedWork] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     async function loadAlerts() {
@@ -25,13 +23,8 @@ export default function DashboardLayout() {
   }, []);
 
   const handleOpenWorkDetail = (work) => {
-    setSelectedWork(work);
-    setIsModalOpen(true);
-  };
-
-  const handleCloseWorkDetail = () => {
-    setIsModalOpen(false);
-    setSelectedWork(null);
+    if (!work?.workId) return;
+    navigate(`/ministry/cases/${work.workId}`, { state: { work } });
   };
 
   return (
@@ -52,20 +45,13 @@ export default function DashboardLayout() {
       <footer className="border-t border-[#EFF3F4] bg-[#F7F9F9] py-4 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>
-            Smart India Hackathon 2026 • MPLADS AI Anomaly & Early Warning Engine
+            Smart India Hackathon 2026 • MPLADS AI Risk Screening & Early Warning System
           </span>
           <span className="text-slate-400">
             Powered by Automated Geospatial & Financial Risk ML Models
           </span>
         </div>
       </footer>
-
-      {/* Global WorkDetailModal */}
-      <WorkDetailModal
-        work={selectedWork}
-        isOpen={isModalOpen}
-        onClose={handleCloseWorkDetail}
-      />
     </div>
   );
 }

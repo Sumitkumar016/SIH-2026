@@ -5,7 +5,6 @@ import {
   ArrowUpDown,
   FileSpreadsheet,
   ShieldCheck,
-  CheckCircle2,
   Calendar,
   Layers,
 } from 'lucide-react';
@@ -239,12 +238,6 @@ export default function MpWorksListPage() {
                       <div className="text-[10px] text-slate-400 mt-0.5">
                         Contractor: {w.vendorName || 'Not Appointed'}
                       </div>
-                      {w.mpJustification && (
-                        <div className="text-[10px] text-emerald-700 font-semibold mt-1 flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3" />
-                          Justification Submitted
-                        </div>
-                      )}
                     </td>
 
                     {/* Category */}

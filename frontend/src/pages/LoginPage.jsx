@@ -83,7 +83,7 @@ export default function LoginPage() {
             MPLADS <span className="text-[#1D9BF0]">SENTINEL</span>
           </h1>
           <p className="text-xs text-slate-500 mt-1 font-medium">
-            AI-Powered Anomaly Detection & Transparency Intelligence Platform
+            AI-Assisted Risk Screening & Transparency Platform
           </p>
           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 mt-2 rounded-full bg-sky-50 text-[#1D9BF0] text-[11px] font-semibold border border-sky-100">
             <Sparkles className="w-3 h-3 text-[#1D9BF0]" />

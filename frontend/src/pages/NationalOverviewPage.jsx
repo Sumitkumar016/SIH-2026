@@ -193,7 +193,7 @@ export default function NationalOverviewPage() {
         {/* Card 5: Flagged Cases */}
         <div className="bg-white border border-rose-200/80 rounded-2xl p-4 shadow-subtle hover:shadow-card transition-all bg-rose-50/20">
           <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-rose-800">Flagged Anomalies</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-rose-800">Flagged for Review</span>
             <div className="p-1.5 bg-rose-100 rounded-lg text-rose-600 border border-rose-200">
               <AlertOctagon className="w-4 h-4" />
             </div>
@@ -217,7 +217,7 @@ export default function NationalOverviewPage() {
                 <MapPin className="w-4 h-4" />
               </span>
               <h2 className="text-base font-bold text-[#0F1419]">
-                National Anomaly Surveillance & State Density Heat Matrix
+                National Risk Distribution by State
               </h2>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -466,7 +466,7 @@ export default function NationalOverviewPage() {
             <div className="flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 text-rose-600" />
               <h3 className="text-sm font-bold text-[#0F1419]">
-                Live High-Risk Anomaly Alerts (Nationwide Feed)
+                Recent High-Priority Flags (Nationwide)
               </h3>
             </div>
             <Link

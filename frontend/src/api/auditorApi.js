@@ -1,4 +1,5 @@
 import { mockWorksData } from './mockData';
+import { apiFetch } from './apiClient';
 
 /**
  * Auditor / Investigator Data Layer (src/api/auditorApi.js)
@@ -8,6 +9,26 @@ import { mockWorksData } from './mockData';
 export const auditorApi = {
   // Get High-Risk Case Queue (Excludes Low Risk entirely)
   async getCaseQueue(filters = {}) {
+    try {
+      const params = new URLSearchParams();
+      if (filters.search) params.append('search', filters.search);
+      if (filters.riskLevel) params.append('riskLevel', filters.riskLevel);
+      if (filters.caseStatus) params.append('caseStatus', filters.caseStatus);
+      if (filters.source) params.append('source', filters.source);
+
+      const queryStr = params.toString();
+      const endpoint = `/api/auditor/queue${queryStr ? `?${queryStr}` : ''}`;
+      const remote = await apiFetch(endpoint);
+      if (remote && Array.isArray(remote.data)) {
+        return {
+          total: remote.data.length,
+          data: remote.data,
+        };
+      }
+    } catch {
+      // Gracefully fall back to local seed/mock data when backend is unreachable
+    }
+
     // Only Medium and High risk cases
     let cases = mockWorksData.filter(
       (w) => w.riskLevel === 'High' || w.riskLevel === 'Medium' || (w.riskScore && w.riskScore >= 40)
@@ -57,6 +78,15 @@ export const auditorApi = {
 
   // Get Case Details by Work ID
   async getCaseById(workId) {
+    try {
+      const remote = await apiFetch(`/api/auditor/case/${encodeURIComponent(workId)}`);
+      if (remote && remote.workId) {
+        return remote;
+      }
+    } catch {
+      // Gracefully fall back to local seed/mock data when backend is unreachable
+    }
+
     const target = mockWorksData.find(w => w.workId.toLowerCase() === workId.toLowerCase());
     if (!target) return null;
 
@@ -73,6 +103,15 @@ export const auditorApi = {
   async getVendorProfile(vendorName) {
     if (!vendorName || !vendorName.trim()) {
       vendorName = "M/s Apex Infra Projects"; // Default sample suspicious vendor
+    }
+
+    try {
+      const remote = await apiFetch(`/api/auditor/vendor?name=${encodeURIComponent(vendorName)}`);
+      if (remote && remote.vendorName) {
+        return remote;
+      }
+    } catch {
+      // Gracefully fall back to local seed/mock data when backend is unreachable
     }
 
     const cleanName = vendorName.trim().toLowerCase();
@@ -163,6 +202,23 @@ export const auditorApi = {
 
   // Submit Auditor Report
   async submitAuditorReport(workId, reportData) {
+    try {
+      const res = await apiFetch(`/api/auditor/case/${encodeURIComponent(workId)}/report`, {
+        method: 'POST',
+        body: reportData,
+      });
+      if (res) {
+        const target = mockWorksData.find(w => w.workId.toLowerCase() === workId.toLowerCase());
+        if (target) {
+          target.auditorReport = res;
+          target.caseStatus = res.status || reportData.status || 'Under Review';
+        }
+        return { success: true, workId, report: res };
+      }
+    } catch {
+      // Graceful fallback to local mock data
+    }
+
     const target = mockWorksData.find(w => w.workId.toLowerCase() === workId.toLowerCase());
     if (target) {
       target.auditorReport = {
@@ -171,14 +227,66 @@ export const auditorApi = {
         submittedDate: new Date().toISOString().slice(0, 10),
         submittedBy: 'Independent Auditor',
         status: reportData.status || 'Under Review',
+        verifiedProgressPct: reportData.verifiedProgressPct !== undefined ? reportData.verifiedProgressPct : null,
+        discrepancyFlag: Boolean(reportData.discrepancyFlag),
       };
       target.caseStatus = reportData.status || 'Under Review';
     }
     return { success: true, workId, report: target?.auditorReport };
   },
 
+  // Submit Asset Verification
+  async submitAssetVerification(workId, assetData) {
+    try {
+      const res = await apiFetch(`/api/auditor/case/${encodeURIComponent(workId)}/asset`, {
+        method: 'POST',
+        body: assetData,
+      });
+      if (res) {
+        const target = mockWorksData.find(w => w.workId.toLowerCase() === workId.toLowerCase());
+        if (target) {
+          target.assetCreation = [res];
+          target.latestAssetVerificationStatus = res.verificationStatus;
+        }
+        return { success: true, workId, asset: res };
+      }
+    } catch {
+      // Graceful fallback to local mock data
+    }
+
+    const target = mockWorksData.find(w => w.workId.toLowerCase() === workId.toLowerCase());
+    if (target) {
+      target.assetCreation = [assetData];
+      target.latestAssetVerificationStatus = assetData.verificationStatus;
+    }
+    return { success: true, workId, asset: assetData };
+  },
+
   // Case Action Trigger (Request Inspection, Request Evidence, etc.)
   async updateCaseAction(workId, actionType, note = '') {
+    try {
+      const res = await apiFetch(`/api/auditor/case/${encodeURIComponent(workId)}/action`, {
+        method: 'POST',
+        body: { actionType, note },
+      });
+      if (res && res.success) {
+        const target = mockWorksData.find(w => w.workId.toLowerCase() === workId.toLowerCase());
+        if (target) {
+          target.lastAuditorAction = {
+            actionType,
+            note,
+            date: new Date().toISOString().slice(0, 10),
+          };
+          if (actionType === 'Resolve Case' || actionType === 'Resolve') target.caseStatus = 'Resolved';
+          if (actionType === 'Mark Under Review') target.caseStatus = 'Under Review';
+          if (actionType === 'Escalate') target.caseStatus = 'Escalated';
+        }
+        return res;
+      }
+    } catch {
+      // Graceful fallback to local mock mutation
+    }
+
     const target = mockWorksData.find(w => w.workId.toLowerCase() === workId.toLowerCase());
     if (target) {
       target.lastAuditorAction = {
@@ -186,7 +294,7 @@ export const auditorApi = {
         note,
         date: new Date().toISOString().slice(0, 10),
       };
-      if (actionType === 'Resolve') target.caseStatus = 'Resolved';
+      if (actionType === 'Resolve Case' || actionType === 'Resolve') target.caseStatus = 'Resolved';
       if (actionType === 'Mark Under Review') target.caseStatus = 'Under Review';
       if (actionType === 'Escalate') target.caseStatus = 'Escalated';
     }

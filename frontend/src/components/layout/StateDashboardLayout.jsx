@@ -1,20 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import TopNavbar from '../common/TopNavbar';
-import WorkDetailModal from '../common/WorkDetailModal';
 import { stateApi } from '../../api/stateApi';
 import { useAuth } from '../../context/AuthContext';
 
 /**
  * StateDashboardLayout Component
  * Wraps State Nodal Authority views with TopNavbar configured for State role,
- * and manages the shared WorkDetailModal when drill-down works are inspected.
+ * and manages case drill-down navigation.
  */
 export default function StateDashboardLayout() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [stateProfile, setStateProfile] = useState(null);
-  const [selectedWork, setSelectedWork] = useState(null);
-  const [isWorkModalOpen, setIsWorkModalOpen] = useState(false);
 
   useEffect(() => {
     async function loadProfile() {
@@ -25,13 +23,8 @@ export default function StateDashboardLayout() {
   }, [user]);
 
   const handleOpenWorkDetail = (work) => {
-    setSelectedWork(work);
-    setIsWorkModalOpen(true);
-  };
-
-  const handleCloseWorkDetail = () => {
-    setIsWorkModalOpen(false);
-    setSelectedWork(null);
+    if (!work?.workId) return;
+    navigate(`/state/cases/${work.workId}`, { state: { work } });
   };
 
   return (
@@ -56,14 +49,6 @@ export default function StateDashboardLayout() {
           </span>
         </div>
       </footer>
-
-      {/* Shared WorkDetailModal */}
-      <WorkDetailModal
-        work={selectedWork}
-        isOpen={isWorkModalOpen}
-        onClose={handleCloseWorkDetail}
-        allowJustification={false}
-      />
     </div>
   );
 }

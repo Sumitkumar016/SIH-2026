@@ -1,4 +1,5 @@
 import { mockWorksData, mockCurrentDistrict } from './mockData';
+import { apiFetch } from './apiClient';
 
 /**
  * District Authority Data Layer (src/api/districtApi.js)
@@ -29,6 +30,15 @@ export const districtApi = {
 
   // Get District Overview (KPIs, MP-wise breakdown table)
   async getDistrictOverview(districtId = 'DIST-BR-PATNA') {
+    try {
+      const remote = await apiFetch('/api/district/overview');
+      if (remote && remote.district && remote.kpis && Array.isArray(remote.mpBreakdown)) {
+        return remote;
+      }
+    } catch {
+      // Gracefully fall back to local seed/mock data when backend is unreachable
+    }
+
     const districtInfo = await this.getDistrictProfile(districtId);
     const districtWorks = mockWorksData.filter(
       (w) => w.district.toLowerCase() === districtInfo.districtName.toLowerCase()
@@ -94,13 +104,33 @@ export const districtApi = {
 
   // Get Verification Queue: ONLY completed works where photo evidence is missing
   async getVerificationQueue(districtId = 'DIST-BR-PATNA') {
+    try {
+      const remote = await apiFetch('/api/district/verification');
+      if (remote && Array.isArray(remote.data)) {
+        return {
+          district: mockCurrentDistrict,
+          total: remote.data.length,
+          data: remote.data,
+        };
+      }
+    } catch {
+      // Graceful fallback to mock data
+    }
+
     const districtInfo = mockCurrentDistrict;
     const missingEvidenceWorks = mockWorksData.filter(
       (w) =>
         w.district.toLowerCase() === districtInfo.districtName.toLowerCase() &&
         w.status === 'Completed' &&
         w.photoEvidenceStatus === 'missing'
-    );
+    ).map((w) => ({
+      ...w,
+      assetVerificationStatus:
+        w.assetVerificationStatus ||
+        w.latestAssetVerificationStatus ||
+        w.assetCreation?.[0]?.verificationStatus ||
+        null,
+    }));
 
     return {
       district: districtInfo,
@@ -111,6 +141,22 @@ export const districtApi = {
 
   // Action 1: Mark as Verified (evidence confirmed, removes from queue)
   async markWorkVerified(workId) {
+    try {
+      const res = await apiFetch(`/api/district/verification/${encodeURIComponent(workId)}/verify`, {
+        method: 'POST',
+      });
+      if (res && res.success) {
+        const target = mockWorksData.find(w => w.workId === workId);
+        if (target) {
+          target.photoEvidenceStatus = 'verified';
+          target.verifiedDate = new Date().toISOString().slice(0, 10);
+        }
+        return res;
+      }
+    } catch {
+      // Graceful fallback to local mock mutation
+    }
+
     const target = mockWorksData.find(w => w.workId === workId);
     if (target) {
       target.photoEvidenceStatus = 'verified';
@@ -121,6 +167,24 @@ export const districtApi = {
 
   // Action 2: Request Evidence (sends notice/reminder)
   async requestEvidence(workId, note = 'Formal notice sent to implementing agency') {
+    try {
+      const res = await apiFetch(`/api/district/verification/${encodeURIComponent(workId)}/request-evidence`, {
+        method: 'POST',
+        body: { note },
+      });
+      if (res && res.success) {
+        const target = mockWorksData.find(w => w.workId === workId);
+        if (target) {
+          target.evidenceReminderSent = true;
+          target.evidenceReminderDate = new Date().toISOString().slice(0, 10);
+          target.evidenceReminderNote = note;
+        }
+        return res;
+      }
+    } catch {
+      // Graceful fallback to local mock mutation
+    }
+
     const target = mockWorksData.find(w => w.workId === workId);
     if (target) {
       target.evidenceReminderSent = true;
@@ -132,6 +196,30 @@ export const districtApi = {
 
   // Action 3: Escalate to Investigation (updates shared mock data object for Auditor dashboard)
   async escalateWorkToInvestigation(workId, note = 'Evidence not provided after multiple statutory reminder periods') {
+    try {
+      const res = await apiFetch(`/api/district/verification/${encodeURIComponent(workId)}/escalate`, {
+        method: 'POST',
+        body: { note },
+      });
+      if (res && res.success) {
+        const target = mockWorksData.find(w => w.workId.toLowerCase() === workId.toLowerCase());
+        if (target) {
+          target.escalationSource = 'district';
+          target.escalationNote = note;
+          target.escalatedDate = new Date().toISOString().slice(0, 10);
+          target.status = 'Under Investigation';
+          target.caseStatus = 'Escalated';
+          if (target.riskScore < 75) {
+            target.riskScore = Math.max(target.riskScore, 75);
+            target.riskLevel = 'High';
+          }
+        }
+        return res;
+      }
+    } catch {
+      // Graceful fallback to local mock mutation
+    }
+
     const target = mockWorksData.find(w => w.workId.toLowerCase() === workId.toLowerCase());
     if (target) {
       target.escalationSource = 'district';

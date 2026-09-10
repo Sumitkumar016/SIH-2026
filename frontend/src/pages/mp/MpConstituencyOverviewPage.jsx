@@ -229,7 +229,7 @@ export default function MpConstituencyOverviewPage() {
         </div>
       </div>
 
-      {/* MY FLAGGED CASES SECTION (REUSING WORKDETAILMODAL WITH JUSTIFICATION) */}
+      {/* MY FLAGGED CASES SECTION */}
       <div className="bg-white border border-[#EFF3F4] rounded-2xl p-5 shadow-subtle">
         <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#EFF3F4]">
           <div className="flex items-center gap-2">
@@ -296,16 +296,6 @@ export default function MpConstituencyOverviewPage() {
                   <span>{work.flagReason}</span>
                 </div>
 
-                {/* If already submitted a justification */}
-                {work.mpJustification && (
-                  <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-center gap-2 mb-2">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                    <span>
-                      <strong>Justification on file:</strong> "{work.mpJustification.justification}"
-                    </span>
-                  </div>
-                )}
-
                 <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-200/60">
                   <div className="flex items-center gap-3">
                     <span>Sanctioned: <strong className="font-mono text-slate-700">₹{work.sanctionedAmount?.toFixed(1)}L</strong></span>
@@ -313,7 +303,7 @@ export default function MpConstituencyOverviewPage() {
                   </div>
 
                   <span className="text-[#1D9BF0] font-semibold flex items-center group-hover:translate-x-0.5 transition-transform">
-                    {work.mpJustification ? 'Review / Edit Justification' : 'Submit MP Justification'} <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
+                    View Project Details <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
                   </span>
                 </div>
               </div>

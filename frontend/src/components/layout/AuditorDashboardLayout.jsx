@@ -1,18 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import TopNavbar from '../common/TopNavbar';
-import WorkDetailModal from '../common/WorkDetailModal';
 import { auditorApi } from '../../api/auditorApi';
 
 /**
  * AuditorDashboardLayout Component
  * Wraps all Auditor views with TopNavbar configured for Auditor role,
- * and manages the shared WorkDetailModal.
+ * and manages case drill-down navigation.
  */
 export default function AuditorDashboardLayout() {
+  const navigate = useNavigate();
   const [activeQueueCount, setActiveQueueCount] = useState(0);
-  const [selectedWork, setSelectedWork] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const loadAlerts = async () => {
     const queue = await auditorApi.getCaseQueue();
@@ -24,13 +22,8 @@ export default function AuditorDashboardLayout() {
   }, []);
 
   const handleOpenWorkDetail = (work) => {
-    setSelectedWork(work);
-    setIsModalOpen(true);
-  };
-
-  const handleCloseWorkDetail = () => {
-    setIsModalOpen(false);
-    setSelectedWork(null);
+    if (!work?.workId) return;
+    navigate(`/auditor/cases/${work.workId}`, { state: { work } });
   };
 
   return (
@@ -58,14 +51,6 @@ export default function AuditorDashboardLayout() {
           </span>
         </div>
       </footer>
-
-      {/* Shared WorkDetailModal */}
-      <WorkDetailModal
-        work={selectedWork}
-        isOpen={isModalOpen}
-        onClose={handleCloseWorkDetail}
-        allowJustification={false}
-      />
     </div>
   );
 }

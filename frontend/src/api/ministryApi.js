@@ -1,5 +1,6 @@
 import { mockWorksData } from './mockData';
 import { mpladsService } from './mpladsService';
+import { apiFetch } from './apiClient';
 
 /**
  * Ministry API Layer (src/api/ministryApi.js)
@@ -16,6 +17,38 @@ import { mpladsService } from './mpladsService';
  * - Zero recommended works => completionRate: null ('N/A').
  */
 export async function getMpLeaderboard(filters = {}) {
+  try {
+    const params = new URLSearchParams();
+    if (filters.search) params.append('search', filters.search);
+    if (filters.state) params.append('state', filters.state);
+    if (filters.district) params.append('district', filters.district);
+    if (filters.utilizationRange) params.append('utilizationRange', filters.utilizationRange);
+    if (filters.completionRange) params.append('completionRange', filters.completionRange);
+    if (filters.sortField) params.append('sortField', filters.sortField);
+    if (filters.sortDirection) params.append('sortDirection', filters.sortDirection);
+
+    const qs = params.toString();
+    const endpoint = qs ? `/api/ministry/mp-performance?${qs}` : '/api/ministry/mp-performance';
+    const remote = await apiFetch(endpoint);
+    if (remote && Array.isArray(remote.data)) {
+      const rankable = remote.data.filter((m) => m.fundUtilization !== null && !isNaN(m.fundUtilization));
+      const top5 = remote.top5 || [...rankable].sort((a, b) => b.fundUtilization - a.fundUtilization).slice(0, 5).map((m, i) => ({ ...m, rank: i + 1 }));
+      const bottom5 = remote.bottom5 || [...rankable].sort((a, b) => a.fundUtilization - b.fundUtilization).slice(0, 5).map((m, i) => ({ ...m, rank: i + 1 }));
+
+      return {
+        data: remote.data,
+        total: remote.data.length,
+        allMps: remote.data,
+        availableStates: remote.availableStates || [],
+        availableDistricts: remote.availableDistricts || [],
+        top5,
+        bottom5,
+      };
+    }
+  } catch {
+    // Gracefully fall back to local seed/mock data when backend is not reached
+  }
+
   const mpMap = new Map();
 
   mockWorksData.forEach((work) => {
@@ -220,9 +253,16 @@ export async function getMpLeaderboard(filters = {}) {
   };
 }
 
+export const getTrendsAnalytics = mpladsService.getTrendsAnalytics;
+export const getPredictiveWatchlist = mpladsService.getPredictiveWatchlist;
+
 export const ministryApi = {
   ...mpladsService,
   getMpLeaderboard,
+  getTrendsAnalytics,
+  getPredictiveWatchlist,
 };
 
 export default ministryApi;
+
+

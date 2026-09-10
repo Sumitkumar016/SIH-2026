@@ -1,4 +1,5 @@
 import { mockCurrentState, mockBiharDistrictsData, mockWorksData } from './mockData';
+import { apiFetch } from './apiClient';
 
 /**
  * State Nodal Authority Data Layer (src/api/stateApi.js)
@@ -27,6 +28,15 @@ export const stateApi = {
 
   // Get State Overview rollup
   async getStateOverview(stateId = 'STATE-BR') {
+    try {
+      const remote = await apiFetch('/api/state/overview');
+      if (remote && remote.state && remote.kpis && Array.isArray(remote.districts)) {
+        return remote;
+      }
+    } catch {
+      // Gracefully fall back to local seed/mock data when backend is unreachable
+    }
+
     const stateInfo = await this.getStateProfile(stateId);
     const districts = mockBiharDistrictsData.map(d => ({
       ...d,
@@ -57,6 +67,18 @@ export const stateApi = {
 
   // Get District Summary Details (including top 3 highest-risk projects)
   async getDistrictSummary(districtName) {
+    try {
+      const remote = await apiFetch(`/api/state/districts/${encodeURIComponent(districtName)}/summary`);
+      if (remote && remote.district) {
+        return {
+          ...remote,
+          topProjects: remote.topRiskProjects || remote.topProjects || [],
+        };
+      }
+    } catch {
+      // Gracefully fall back to local seed/mock data when backend is unreachable
+    }
+
     const districtInfo = mockBiharDistrictsData.find(
       d => d.district.toLowerCase() === districtName.toLowerCase()
     ) || {

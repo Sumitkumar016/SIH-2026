@@ -69,7 +69,7 @@ export async function getMockResponse(userMessage, role = 'ministry') {
         }
         if (role === 'mp') {
           return resolve(
-            "Your Constituency Overview highlights delayed or flagged works in your area. You can check sanction dates and submit official MP justifications directly from the works list."
+            "Your Constituency Overview highlights delayed or flagged works in your area. You can check sanction dates, fund utilization, and execution status directly from the works list."
           );
         }
         if (role === 'state') {

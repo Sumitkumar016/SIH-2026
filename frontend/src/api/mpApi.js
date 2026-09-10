@@ -1,13 +1,11 @@
 import { mockWorksData, mockCurrentMp } from './mockData';
+import { apiFetch } from './apiClient';
 
 /**
  * MP Data Layer (src/api/mpApi.js)
  * Scoped strictly to the logged-in MP's individual constituency.
  * Filters from the central mock dataset without duplicating data.
  */
-
-// In-memory cache for MP justifications submitted in demo session
-const justificationStore = new Map();
 
 export const mpApi = {
   // Get MP profile / identity
@@ -33,11 +31,21 @@ export const mpApi = {
 
   // Get My Constituency Overview (KPIs, utilization, and only this MP's flagged works)
   async getMyConstituencyOverview(mpId = 'MP-BR-0412') {
+    try {
+      const remote = await apiFetch('/api/mp/overview');
+      if (remote && remote.mp && remote.kpis && Array.isArray(remote.flaggedWorks)) {
+        return remote;
+      }
+    } catch {
+      // Gracefully fall back to local seed/mock data when backend is not reached
+    }
+
     const mpInfo = await this.getMpProfile(mpId);
     // Filter works for this MP
     const mpWorks = mockWorksData.filter(
       (w) => w.mpName.toLowerCase() === mpInfo.mpName.toLowerCase()
     );
+
 
     // Calculate MP-scoped KPIs
     const totalRecommendedCount = mpWorks.length + 3; // +3 pipeline requests in draft
@@ -56,16 +64,7 @@ export const mpApi = {
     // Flagged cases for THIS MP only
     const flaggedWorks = mpWorks.filter(
       (w) => w.riskLevel === 'High' || w.riskLevel === 'Medium' || (w.riskScore && w.riskScore >= 40)
-    ).map(w => {
-      // Attach justification if previously submitted in session
-      if (justificationStore.has(w.workId)) {
-        return {
-          ...w,
-          mpJustification: justificationStore.get(w.workId)
-        };
-      }
-      return w;
-    });
+    );
 
     return {
       mp: mpInfo,
@@ -88,6 +87,23 @@ export const mpApi = {
 
   // Get full list of works for this MP with search & filters
   async getMyWorks(mpId = 'MP-BR-0412', filters = {}) {
+    try {
+      const params = new URLSearchParams();
+      if (filters.search) params.append('search', filters.search);
+      if (filters.status) params.append('status', filters.status);
+      if (filters.category) params.append('category', filters.category);
+      if (filters.riskLevel) params.append('riskLevel', filters.riskLevel);
+
+      const qs = params.toString();
+      const endpoint = qs ? `/api/mp/works?${qs}` : '/api/mp/works';
+      const remote = await apiFetch(endpoint);
+      if (remote && Array.isArray(remote.data)) {
+        return remote;
+      }
+    } catch {
+      // Gracefully fall back to local mock data when backend is not reached
+    }
+
     const mpInfo = mockCurrentMp;
     let works = mockWorksData.filter(
       (w) => w.mpName.toLowerCase() === mpInfo.mpName.toLowerCase()
@@ -120,33 +136,11 @@ export const mpApi = {
       );
     }
 
-    // Merge any session justifications
-    const enrichedWorks = works.map((w) => {
-      if (justificationStore.has(w.workId)) {
-        return {
-          ...w,
-          mpJustification: justificationStore.get(w.workId),
-        };
-      }
-      return w;
-    });
-
     return {
       mp: mpInfo,
-      total: enrichedWorks.length,
-      data: enrichedWorks,
+      total: works.length,
+      data: works,
     };
-  },
-
-  // Submit justification/response for a flagged work
-  async submitWorkJustification(workId, justificationText) {
-    const record = {
-      workId,
-      justification: justificationText,
-      submittedAt: new Date().toISOString(),
-      status: 'Submitted to Ministry Review',
-    };
-    justificationStore.set(workId, record);
-    return { success: true, record };
   },
 };
+

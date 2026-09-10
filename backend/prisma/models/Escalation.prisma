@@ -7,13 +7,16 @@ model Escalation {
   work_id           String           @map("work_id") @db.VarChar(100)
   escalation_source EscalationSource @map("escalation_source")
   escalation_note   String?          @map("escalation_note") @db.Text
-  escalated_by      String?          @map("escalated_by") @db.VarChar(150)
-  escalated_date    DateTime?        @map("escalated_date") @db.Date
+  escalated_by         String?          @map("escalated_by") @db.VarChar(150)
+  escalated_by_user_id Int?             @map("escalated_by_user_id")
+  escalated_date       DateTime?        @map("escalated_date") @db.Date
 
   // Relationships
-  work              Work             @relation(fields: [work_id], references: [work_id], onDelete: Cascade)
+  work                 Work             @relation(fields: [work_id], references: [work_id], onDelete: Cascade)
+  escalated_by_user    User?            @relation(fields: [escalated_by_user_id], references: [user_id], onDelete: SetNull)
 
   @@index([work_id])
   @@index([escalation_source])
+  @@index([escalated_by_user_id])
   @@map("escalations")
 }

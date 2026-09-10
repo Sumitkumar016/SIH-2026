@@ -46,11 +46,21 @@ export default function AuditorCaseDetailPage() {
 
   // Investigation Form State
   const [investigationNotes, setInvestigationNotes] = useState('');
-  const [conclusion, setConclusion] = useState('Confirmed Anomaly');
+  const [conclusion, setConclusion] = useState('');
   const [status, setStatus] = useState('Under Review');
+  const [verifiedProgressPct, setVerifiedProgressPct] = useState('');
+  const [discrepancyFlag, setDiscrepancyFlag] = useState(false);
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [reportSubmittedSuccess, setReportSubmittedSuccess] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
+
+  // Asset Verification Form State
+  const [assetType, setAssetType] = useState('');
+  const [assetVerificationStatus, setAssetVerificationStatus] = useState('verified');
+  const [geotagLat, setGeotagLat] = useState('');
+  const [geotagLong, setGeotagLong] = useState('');
+  const [isSubmittingAsset, setIsSubmittingAsset] = useState(false);
+  const [assetSubmittedSuccess, setAssetSubmittedSuccess] = useState(false);
 
   const loadCase = async () => {
     setLoading(true);
@@ -59,9 +69,30 @@ export default function AuditorCaseDetailPage() {
       setCaseData(res);
       if (res.auditorReport) {
         setInvestigationNotes(res.auditorReport.notes || '');
-        setConclusion(res.auditorReport.conclusion || 'Confirmed Anomaly');
+        setConclusion(res.auditorReport.conclusion || '');
         setStatus(res.auditorReport.status || 'Under Review');
+        setVerifiedProgressPct(
+          res.auditorReport.verifiedProgressPct !== null && res.auditorReport.verifiedProgressPct !== undefined
+            ? String(res.auditorReport.verifiedProgressPct)
+            : ''
+        );
+        setDiscrepancyFlag(Boolean(res.auditorReport.discrepancyFlag));
         setReportSubmittedSuccess(true);
+      }
+      if (res.assetCreation && res.assetCreation.length > 0) {
+        const latestAsset = res.assetCreation[0];
+        setAssetType(latestAsset.assetType || '');
+        setAssetVerificationStatus(latestAsset.verificationStatus || 'verified');
+        setGeotagLat(
+          latestAsset.geotagLat !== null && latestAsset.geotagLat !== undefined
+            ? String(latestAsset.geotagLat)
+            : ''
+        );
+        setGeotagLong(
+          latestAsset.geotagLong !== null && latestAsset.geotagLong !== undefined
+            ? String(latestAsset.geotagLong)
+            : ''
+        );
       }
     }
     setLoading(false);
@@ -84,15 +115,57 @@ export default function AuditorCaseDetailPage() {
 
   const handleSubmitReport = async (e) => {
     e.preventDefault();
+    if (!conclusion) {
+      showToast('Please select a conclusion before submitting.');
+      return;
+    }
     setIsSubmittingReport(true);
-    await auditorApi.submitAuditorReport(workId, {
+    const payload = {
       conclusion,
       notes: investigationNotes,
       status,
-    });
+    };
+    if (verifiedProgressPct !== '' && !isNaN(Number(verifiedProgressPct))) {
+      payload.verifiedProgressPct = Number(verifiedProgressPct);
+    }
+    if (discrepancyFlag !== undefined) {
+      payload.discrepancyFlag = Boolean(discrepancyFlag);
+    }
+    await auditorApi.submitAuditorReport(workId, payload);
     setIsSubmittingReport(false);
     setReportSubmittedSuccess(true);
     showToast('Official Audit Report filed — visible to Ministry & State dashboards.');
+  };
+
+  const handleSubmitAsset = async (e) => {
+    e.preventDefault();
+    if (!assetVerificationStatus) {
+      showToast('Please select a verification status.');
+      return;
+    }
+    setIsSubmittingAsset(true);
+    const payload = {
+      verificationStatus: assetVerificationStatus,
+    };
+    if (assetType.trim()) {
+      payload.assetType = assetType.trim();
+    }
+    if (geotagLat !== '' && !isNaN(Number(geotagLat))) {
+      payload.geotagLat = Number(geotagLat);
+    }
+    if (geotagLong !== '' && !isNaN(Number(geotagLong))) {
+      payload.geotagLong = Number(geotagLong);
+    }
+
+    const res = await auditorApi.submitAssetVerification(workId, payload);
+    setIsSubmittingAsset(false);
+    if (res?.success) {
+      setAssetSubmittedSuccess(true);
+      showToast('Physical asset verification status updated successfully.');
+      await loadCase();
+    } else {
+      showToast('Failed to submit asset verification.');
+    }
   };
 
   if (loading || !caseData) {
@@ -115,7 +188,7 @@ export default function AuditorCaseDetailPage() {
     { factor: 'Financial Inflation', percent: breakdown.costOverrun || 0, color: '#EF4444' },
     { factor: 'Progress Mismatch', percent: breakdown.delaySlippage || 0, color: '#F59E0B' },
     { factor: 'Duplicate/GIS Match', percent: breakdown.duplicateSimilarity || 0, color: '#6366F1' },
-    { factor: 'Vendor Anomaly', percent: breakdown.vendorAnomaly || 0, color: '#EC4899' },
+    { factor: 'Vendor Concentration', percent: breakdown.vendorAnomaly || 0, color: '#EC4899' },
   ].sort((a, b) => b.percent - a.percent);
 
   return (
@@ -187,7 +260,7 @@ export default function AuditorCaseDetailPage() {
         {/* Large Prominent Risk Score */}
         <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 text-center shrink-0 self-start md:self-auto min-w-[130px]">
           <span className="text-[10px] font-bold uppercase tracking-wider text-rose-800 block">
-            AI Anomaly Score
+            AI Risk Score
           </span>
           <div className="text-3xl font-black text-rose-600 font-mono mt-0.5">
             {caseData.riskScore}<span className="text-sm font-normal text-slate-500">/100</span>
@@ -476,11 +549,13 @@ export default function AuditorCaseDetailPage() {
               <select
                 value={conclusion}
                 onChange={(e) => setConclusion(e.target.value)}
+                required
                 className="w-full text-xs p-2.5 bg-white border border-[#EFF3F4] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1D9BF0] text-[#0F1419] font-medium"
               >
-                <option value="Confirmed Anomaly">Confirmed Anomaly (Ground Disparity)</option>
+                <option value="" disabled>Select a conclusion...</option>
+                <option value="Confirmed Anomaly">Confirmed — Irregularity Verified</option>
                 <option value="Requires Field Action">Requires Field Action (Remedial Notice)</option>
-                <option value="False Positive">False Positive (Within Tolerable SLA)</option>
+                <option value="False Positive">False Positive — No Irregularity Found</option>
               </select>
             </div>
 
@@ -497,6 +572,38 @@ export default function AuditorCaseDetailPage() {
                 <option value="Escalated">Escalated to Ministry Directorate</option>
                 <option value="Resolved">Resolved / Closed</option>
               </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Verified Progress % (Optional):
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                value={verifiedProgressPct}
+                onChange={(e) => setVerifiedProgressPct(e.target.value)}
+                placeholder="e.g. 65 (leave empty if not evaluated)"
+                className="w-full text-xs p-2.5 bg-white border border-[#EFF3F4] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1D9BF0] text-[#0F1419] font-medium placeholder-slate-400"
+              />
+            </div>
+
+            <div className="flex items-center pt-5">
+              <label className="relative flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={discrepancyFlag}
+                  onChange={(e) => setDiscrepancyFlag(e.target.checked)}
+                  className="w-4 h-4 text-rose-600 rounded border-slate-300 focus:ring-rose-500"
+                />
+                <span className="text-xs font-bold text-rose-700">
+                  Discrepancy Flag (Reported progress does not match ground verification)
+                </span>
+              </label>
             </div>
           </div>
 
@@ -525,6 +632,107 @@ export default function AuditorCaseDetailPage() {
             >
               <Send className="w-3.5 h-3.5" />
               <span>{isSubmittingReport ? 'Submitting Report...' : 'Submit Official Audit Report'}</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* SECTION 5: PHYSICAL ASSET VERIFICATION */}
+      <div className="bg-white border border-[#EFF3F4] rounded-2xl p-5 shadow-subtle space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-[#EFF3F4]">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-sky-100 rounded-lg text-sky-800">
+              <MapPin className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-[#0F1419]">
+                Physical Asset Ground Verification
+              </h2>
+              <span className="text-[11px] text-slate-500">
+                Record on-site asset creation status, asset classification, and geotag telemetry
+              </span>
+            </div>
+          </div>
+
+          {assetSubmittedSuccess && (
+            <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+              <Check className="w-3.5 h-3.5 text-emerald-600" />
+              Asset Recorded
+            </span>
+          )}
+        </div>
+
+        <form onSubmit={handleSubmitAsset} className="space-y-4 pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Asset Type:
+              </label>
+              <input
+                type="text"
+                value={assetType}
+                onChange={(e) => setAssetType(e.target.value)}
+                placeholder="e.g. Community Hall, Solar Light"
+                className="w-full text-xs p-2.5 bg-white border border-[#EFF3F4] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1D9BF0] text-[#0F1419] font-medium placeholder-slate-400"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Verification Status:
+              </label>
+              <select
+                value={assetVerificationStatus}
+                onChange={(e) => setAssetVerificationStatus(e.target.value)}
+                required
+                className="w-full text-xs p-2.5 bg-white border border-[#EFF3F4] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1D9BF0] text-[#0F1419] font-medium"
+              >
+                <option value="verified">Verified (Ground Confirmed)</option>
+                <option value="unverified">Unverified (Pending Check)</option>
+                <option value="disputed">Disputed (Anomaly Detected)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Geotag Latitude:
+              </label>
+              <input
+                type="number"
+                step="any"
+                value={geotagLat}
+                onChange={(e) => setGeotagLat(e.target.value)}
+                placeholder="e.g. 25.5941"
+                className="w-full text-xs p-2.5 bg-white border border-[#EFF3F4] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1D9BF0] text-[#0F1419] font-medium placeholder-slate-400"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Geotag Longitude:
+              </label>
+              <input
+                type="number"
+                step="any"
+                value={geotagLong}
+                onChange={(e) => setGeotagLong(e.target.value)}
+                placeholder="e.g. 85.1376"
+                className="w-full text-xs p-2.5 bg-white border border-[#EFF3F4] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1D9BF0] text-[#0F1419] font-medium placeholder-slate-400"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-2">
+            <span className="text-[11px] text-slate-400">
+              Updates the central asset registry and verification queue for this project.
+            </span>
+            <button
+              type="submit"
+              disabled={isSubmittingAsset}
+              className="px-5 py-2 text-xs font-bold text-white bg-[#0F1419] hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-colors shadow-xs flex items-center gap-1.5"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>{isSubmittingAsset ? 'Saving Verification...' : 'Record Asset Verification'}</span>
             </button>
           </div>
         </form>

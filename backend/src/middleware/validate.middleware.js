@@ -1,14 +1,32 @@
-const formatValidationErrors = (issues = []) => {
-  return issues.map((issue) => ({
-    field: issue.path.join("."),
-    message: issue.message,
-  }));
-};
+/**
+ * Formats Zod validation issues into a clean, easy-to-read array of field errors.
+ * Example output: [{ field: "email", message: "Invalid email address" }]
+ */
+function formatValidationErrors(issues = []) {
+  const formattedErrors = [];
 
-// validate receives a schema and checks req.body before the controller runs.
-// If validation passes, req.body is replaced with the cleaned/parsed data.
-const validate = (schema) => {
-  return (req, res, next) => {
+  for (const issue of issues) {
+    formattedErrors.push({
+      field: issue.path.join("."),
+      message: issue.message,
+    });
+  }
+
+  return formattedErrors;
+}
+
+/**
+ * Validation Middleware Factory:
+ * Creates an Express middleware function that validates req.body against a provided Zod schema.
+ * 
+ * - If valid: replaces req.body with the sanitized/parsed data and calls next().
+ * - If invalid: stops the request and sends a 400 Bad Request response with details.
+ *
+ * Example usage: router.post("/login", validate(loginSchema), loginController);
+ */
+function validate(schema) {
+  return function (req, res, next) {
+    // safeParse validates data without throwing an unhandled exception
     const result = schema.safeParse(req.body);
 
     if (!result.success) {
@@ -19,9 +37,10 @@ const validate = (schema) => {
       });
     }
 
+    // Replace req.body with the parsed/coerced data from Zod
     req.body = result.data;
     next();
   };
-};
+}
 
 export default validate;

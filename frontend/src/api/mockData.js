@@ -1144,6 +1144,28 @@ export const mockPredictiveWatchlist = [
   }
 ];
 
+// Enrich all mock works with dataConfidence, fraudRiskScore/Tier, inefficiencyScore/Tier, scoredAt, modelVersion
+mockWorksData.forEach((w) => {
+  if (w.dataConfidence === undefined) {
+    w.dataConfidence = Math.min(96, Math.max(62, Math.round((w.riskScore || 50) * 0.35 + 55)));
+  }
+  if (w.fraudRiskScore === undefined) {
+    w.fraudRiskScore = w.riskScore;
+    w.fraudRiskTier = w.riskLevel;
+  }
+  if (w.inefficiencyScore === undefined) {
+    const delayShare = w.riskFactorBreakdown?.delaySlippage || 30;
+    w.inefficiencyScore = Math.min(95, Math.max(15, Math.round((w.riskScore || 50) * (delayShare / 45))));
+    w.inefficiencyTier = w.inefficiencyScore >= 70 ? 'High' : w.inefficiencyScore >= 40 ? 'Medium' : 'Low';
+  }
+  if (w.scoredAt === undefined) {
+    w.scoredAt = "2024-03-01T10:30:00Z";
+  }
+  if (w.modelVersion === undefined) {
+    w.modelVersion = "1.2";
+  }
+});
+
 // National State-Wise Aggregate Statistics (for National Overview Centerpiece)
 export const mockStateRiskData = [
   { state: "Uttar Pradesh", code: "UP", totalWorks: 3840, sanctionedCr: 1820.5, completed: 2790, flaggedCount: 312, highRisk: 142, medRisk: 110, lowRisk: 60, riskIndex: 8.1 },

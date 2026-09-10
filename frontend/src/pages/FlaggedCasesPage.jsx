@@ -123,7 +123,7 @@ export default function FlaggedCasesPage() {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `MPLADS_Flagged_Anomalies_Export_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `MPLADS_Flagged_For_Review_Export_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -136,7 +136,7 @@ export default function FlaggedCasesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-[#0F1419] tracking-tight">
-            Flagged MPLADS Anomalies & Audit Register
+            Works Flagged for Review
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
             Central repository of works flagged by AI audit algorithms across India.
@@ -148,7 +148,7 @@ export default function FlaggedCasesPage() {
           className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-[#0F1419] bg-white border border-[#EFF3F4] rounded-xl hover:bg-[#F7F9F9] hover:border-slate-300 transition-all shadow-xs self-start sm:self-auto"
         >
           <Download className="w-4 h-4 text-slate-600" />
-          <span>Export Audit Register (CSV)</span>
+          <span>Export Flagged List (CSV)</span>
         </button>
       </div>
 
@@ -277,7 +277,23 @@ export default function FlaggedCasesPage() {
 
                     {/* Risk Badge & Score */}
                     <td className="py-3.5 px-4 text-center">
-                      <RiskBadge level={w.riskLevel} score={w.riskScore} size="sm" />
+                      <div className="flex flex-col sm:flex-row items-center justify-center gap-1.5">
+                        <RiskBadge
+                          level={w.fraudRiskTier || w.riskLevel}
+                          score={w.fraudRiskScore ?? w.riskScore}
+                          confidence={w.dataConfidence}
+                          type={w.inefficiencyScore !== undefined ? "Fraud" : null}
+                          size="sm"
+                        />
+                        {w.inefficiencyScore !== undefined && (
+                          <RiskBadge
+                            level={w.inefficiencyTier || 'Low'}
+                            score={w.inefficiencyScore}
+                            type="Delay"
+                            size="sm"
+                          />
+                        )}
+                      </div>
                     </td>
 
                     {/* Flag Reason */}

@@ -1,28 +1,32 @@
 import { PrismaClient } from "@prisma/client";
 import config from "./env.js";
 
-// Instantiate a single PrismaClient singleton to prevent exhausting connection pool limits.
+// Determine which Prisma log levels to show based on environment.
+// In development, show queries, errors, and warnings. In production, only errors.
+const logLevels = config.nodeEnv === "development" 
+  ? ["query", "error", "warn"] 
+  : ["error"];
+
+// Create a single PrismaClient instance (singleton) for the entire application.
+// Creating multiple instances can exhaust the database connection pool.
 const prisma = new PrismaClient({
-  log:
-    config.nodeEnv === "development"
-      ? ["query", "error", "warn"]
-      : ["error"],
+  log: logLevels,
 });
 
-// connectDB tests and verifies the PostgreSQL connection via Prisma Client during startup.
-const connectDB = async () => {
+// Test and verify the PostgreSQL connection during server startup.
+async function connectDB() {
   try {
     await prisma.$connect();
     console.log("PostgreSQL connected successfully via Prisma");
   } catch (error) {
     console.error(`PostgreSQL connection failed: ${error.message}`);
-    // Stop the app if the database is unavailable during startup.
+    // Exit the process if the database cannot be reached at startup.
     process.exit(1);
   }
-};
+}
 
-// Graceful shutdown handling for clean disconnect on server termination.
-const handleGracefulShutdown = async (signal) => {
+// Cleanly disconnect from Prisma when the server process is terminated.
+async function handleGracefulShutdown(signal) {
   console.log(`Received ${signal}. Disconnecting Prisma client...`);
   try {
     await prisma.$disconnect();
@@ -31,8 +35,9 @@ const handleGracefulShutdown = async (signal) => {
   } finally {
     process.exit(0);
   }
-};
+}
 
+// Listen for termination signals (e.g., Ctrl+C in terminal, Docker stop).
 process.on("SIGINT", () => handleGracefulShutdown("SIGINT"));
 process.on("SIGTERM", () => handleGracefulShutdown("SIGTERM"));
 

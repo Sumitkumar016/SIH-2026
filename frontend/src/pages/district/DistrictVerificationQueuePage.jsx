@@ -163,6 +163,7 @@ export default function DistrictVerificationQueuePage() {
                 <th className="py-3 px-3">Completion Date</th>
                 <th className="py-3 px-3 text-center">Overdue Days</th>
                 <th className="py-3 px-3 text-center">Risk Level</th>
+                <th className="py-3 px-3 text-center">Asset Status</th>
                 <th className="py-3 px-4 text-right min-w-[260px]">Verification Actions</th>
               </tr>
             </thead>
@@ -170,7 +171,7 @@ export default function DistrictVerificationQueuePage() {
             <tbody className="divide-y divide-[#EFF3F4] text-xs">
               {filteredQueue.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                  <td colSpan={8} className="py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <CheckCircle2 className="w-8 h-8 text-emerald-500" />
                       <span className="font-medium text-sm">All completed works in Patna have verified photo evidence!</span>
@@ -225,6 +226,39 @@ export default function DistrictVerificationQueuePage() {
                       {/* Risk Level */}
                       <td className="py-3.5 px-3 text-center">
                         <RiskBadge level={work.riskLevel} score={work.riskScore} size="sm" />
+                      </td>
+
+                      {/* Asset Verification Status */}
+                      <td className="py-3.5 px-3 text-center">
+                        {(() => {
+                          const status = (work.assetVerificationStatus || 'none').toLowerCase();
+                          if (status === 'verified') {
+                            return (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                Verified
+                              </span>
+                            );
+                          }
+                          if (status === 'disputed') {
+                            return (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                Disputed
+                              </span>
+                            );
+                          }
+                          if (status === 'unverified') {
+                            return (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                Unverified
+                              </span>
+                            );
+                          }
+                          return (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
+                              None
+                            </span>
+                          );
+                        })()}
                       </td>
 
                       {/* Action Buttons */}

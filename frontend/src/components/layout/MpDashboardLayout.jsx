@@ -1,20 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import TopNavbar from '../common/TopNavbar';
-import WorkDetailModal from '../common/WorkDetailModal';
 import { mpApi } from '../../api/mpApi';
 import { useAuth } from '../../context/AuthContext';
 
 /**
  * MpDashboardLayout Component
  * Wraps all MP views with TopNavbar configured for MP role,
- * and manages the shared WorkDetailModal with `allowJustification={true}`.
+ * and manages navigation to dedicated WorkDetailPage.
  */
 export default function MpDashboardLayout() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [mpOverview, setMpOverview] = useState(null);
-  const [selectedWork, setSelectedWork] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const loadData = async () => {
     const data = await mpApi.getMyConstituencyOverview(user?.mpId);
@@ -26,19 +24,8 @@ export default function MpDashboardLayout() {
   }, [user]);
 
   const handleOpenWorkDetail = (work) => {
-    setSelectedWork(work);
-    setIsModalOpen(true);
-  };
-
-  const handleCloseWorkDetail = () => {
-    setIsModalOpen(false);
-    setSelectedWork(null);
-  };
-
-  const handleJustificationSubmitted = async (workId, text) => {
-    await mpApi.submitWorkJustification(workId, text);
-    // Refresh MP data to sync
-    await loadData();
+    if (!work?.workId) return;
+    navigate(`/mp/cases/${work.workId}`, { state: { work } });
   };
 
   const alerts = mpOverview?.flaggedWorks || [];
@@ -69,15 +56,6 @@ export default function MpDashboardLayout() {
           </span>
         </div>
       </footer>
-
-      {/* Global WorkDetailModal with MP Justification enabled */}
-      <WorkDetailModal
-        work={selectedWork}
-        isOpen={isModalOpen}
-        onClose={handleCloseWorkDetail}
-        allowJustification={true}
-        onSubmitJustification={handleJustificationSubmitted}
-      />
     </div>
   );
 }

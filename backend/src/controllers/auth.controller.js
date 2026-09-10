@@ -8,8 +8,14 @@ import { generateAccessToken } from "../utils/jwt.js";
  */
 export const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
-    const cleanEmail = email.trim().toLowerCase();
+    const { email, password } = req.body || {};
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and password are required",
+      });
+    }
+    const cleanEmail = String(email).trim().toLowerCase();
 
     // Query pre-seeded users table
     const user = await prisma.user.findUnique({
