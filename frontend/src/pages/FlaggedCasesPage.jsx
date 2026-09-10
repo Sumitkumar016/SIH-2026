@@ -33,7 +33,7 @@ export default function FlaggedCasesPage() {
     category: 'All',
     riskLevel: 'All',
     status: 'All',
-    financialYear: 'FY 2023-24',
+    financialYear: 'All',
   });
 
   // Sorting & Pagination State
