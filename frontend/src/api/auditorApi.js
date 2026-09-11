@@ -102,7 +102,7 @@ export const auditorApi = {
   // Vendor Cross-Reference Tool: Inspect vendor across entire national dataset
   async getVendorProfile(vendorName) {
     if (!vendorName || !vendorName.trim()) {
-      vendorName = "M/s Apex Infra Projects"; // Default sample suspicious vendor
+      vendorName = "Rajasthan Project Engineering"; // Default sample vendor in database
     }
 
     try {

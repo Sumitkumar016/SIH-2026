@@ -18,31 +18,48 @@ export const SINGLE_STATE_MIN_WORKS_THRESHOLD = 5;
  * @returns {Promise<Object>}
  */
 export async function getVendorProfile(searchName) {
-  let query = "M/s Apex Infra Projects"; // Default sample vendor if input is empty
+  let query = "";
   if (searchName && typeof searchName === "string" && searchName.trim()) {
     query = searchName.trim();
   }
 
   // 1. Find matching vendors (case-insensitive partial search)
-  const matchingVendors = await prisma.vendor.findMany({
-    where: {
-      vendor_name: {
-        contains: query,
-        mode: "insensitive",
+  let matchingVendors = [];
+  if (query && query !== "M/s Apex Infra Projects") {
+    matchingVendors = await prisma.vendor.findMany({
+      where: {
+        vendor_name: {
+          contains: query,
+          mode: "insensitive",
+        },
       },
-    },
-    orderBy: {
-      vendor_name: "asc",
-    },
-  });
+      orderBy: {
+        vendor_name: "asc",
+      },
+    });
+  }
+
+  // If no match found and query was empty or legacy mock sample, select the top vendor by expenditure count
+  if ((!matchingVendors || matchingVendors.length === 0) && (!query || query === "M/s Apex Infra Projects")) {
+    const defaultVendor = await prisma.vendor.findFirst({
+      orderBy: {
+        expenditures: {
+          _count: "desc",
+        },
+      },
+    });
+    if (defaultVendor) {
+      matchingVendors = [defaultVendor];
+    }
+  }
 
   if (!matchingVendors || matchingVendors.length === 0) {
-    const error = new Error("Vendor not found");
+    const error = new Error(`Vendor "${query}" not found`);
     error.statusCode = 404;
     throw error;
   }
 
-  // Select exact match first if available, otherwise default to first alphabetical match
+  // Select exact match first if available, otherwise default to first match
   let vendor = matchingVendors[0];
   for (const v of matchingVendors) {
     if (v.vendor_name.toLowerCase() === query.toLowerCase()) {

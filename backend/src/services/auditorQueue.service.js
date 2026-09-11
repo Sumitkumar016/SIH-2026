@@ -129,9 +129,9 @@ export async function getCaseQueue(filters = {}) {
   const results = [];
 
   for (const w of works) {
-    // 3. Resolve latest report & escalation
-    const latestReport = w.auditor_reports?.[0] || (await getLatestAuditorReport(w.work_id));
-    const latestEscalation = w.escalations?.[0] || (await getLatestEscalation(w.work_id));
+    // 3. Resolve latest report & escalation from the eager-loaded relation
+    const latestReport = w.auditor_reports?.[0] || null;
+    const latestEscalation = w.escalations?.[0] || null;
 
     // Case status ('New' if no report filed yet)
     const derivedCaseStatus = formatCaseStatus(latestReport?.status);

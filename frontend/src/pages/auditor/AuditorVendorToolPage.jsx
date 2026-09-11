@@ -34,7 +34,7 @@ import { auditorApi } from '../../api/auditorApi';
 export default function AuditorVendorToolPage() {
   const { onOpenWorkDetail } = useOutletContext();
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialVendor = searchParams.get('vendor') || 'M/s Apex Infra Projects';
+  const initialVendor = searchParams.get('vendor') || 'Rajasthan Project Engineering';
 
   const [searchTerm, setSearchTerm] = useState(initialVendor);
   const [vendorData, setVendorData] = useState(null);
@@ -42,11 +42,11 @@ export default function AuditorVendorToolPage() {
   const [error, setError] = useState(null);
 
   const sampleVendors = [
-    'M/s Apex Infra Projects',
-    'Ganga Civil Solutions',
-    'Eastern Buildtech Ltd',
-    'Vanguard Constructions Pvt Ltd',
-    'Southern Tech Labs',
+    'Rajasthan Project Engineering',
+    'Brahmaputra Engineering Works',
+    'Cauvery Construction Services',
+    'Mithila Infrastructure Services',
+    'Coastal Development Works',
   ];
 
   const fetchVendorData = async (name) => {
@@ -68,7 +68,7 @@ export default function AuditorVendorToolPage() {
   };
 
   useEffect(() => {
-    const q = searchParams.get('vendor') || 'M/s Apex Infra Projects';
+    const q = searchParams.get('vendor') || 'Rajasthan Project Engineering';
     setSearchTerm(q);
     fetchVendorData(q);
   }, [searchParams]);
