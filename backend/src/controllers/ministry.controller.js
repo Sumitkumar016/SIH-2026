@@ -60,26 +60,35 @@ export const getNationalOverview = asyncHandler(async (req, res) => {
       _sum: { amount: true },
     }),
 
-    // Query 6: Total count of flagged works with Medium or High risk levels
+    // Query 6: Total count of flagged works with Medium or High risk levels for sanctioned works
     prisma.riskScore.count({
       where: {
         is_current: true,
         risk_level: { in: ["Medium", "High"] },
+        work: {
+          status: { not: "Recommended" },
+        },
       },
     }),
 
-    // Query 7: Breakdown count of works across each risk level (Low, Medium, High)
+    // Query 7: Breakdown count of flagged works across risk levels for sanctioned works
     prisma.riskScore.groupBy({
       by: ["risk_level"],
       where: {
         is_current: true,
+        work: {
+          status: { not: "Recommended" },
+        },
       },
       _count: { _all: true },
     }),
 
-    // Query 8: Work count and total sanctioned amount grouped by state
+    // Query 8: Work count and total sanctioned amount grouped by state (sanctioned works)
     prisma.work.groupBy({
       by: ["state_id"],
+      where: {
+        status: { not: "Recommended" },
+      },
       _count: { _all: true },
       _sum: { sanctioned_amount: true },
     }),
@@ -91,28 +100,31 @@ export const getNationalOverview = asyncHandler(async (req, res) => {
       _count: { _all: true },
     }),
 
-    // Query 10: Count of High-risk flagged works grouped by state
+    // Query 10: Count of High-risk flagged works grouped by state (sanctioned works)
     prisma.work.groupBy({
       by: ["state_id"],
       where: {
+        status: { not: "Recommended" },
         current_risk_score: { risk_level: "High" },
       },
       _count: { _all: true },
     }),
 
-    // Query 11: Count of Medium-risk flagged works grouped by state
+    // Query 11: Count of Medium-risk flagged works grouped by state (sanctioned works)
     prisma.work.groupBy({
       by: ["state_id"],
       where: {
+        status: { not: "Recommended" },
         current_risk_score: { risk_level: "Medium" },
       },
       _count: { _all: true },
     }),
 
-    // Query 12: Count of Low-risk flagged works grouped by state
+    // Query 12: Count of Low-risk works grouped by state (sanctioned works)
     prisma.work.groupBy({
       by: ["state_id"],
       where: {
+        status: { not: "Recommended" },
         current_risk_score: { risk_level: "Low" },
       },
       _count: { _all: true },
@@ -123,15 +135,20 @@ export const getNationalOverview = asyncHandler(async (req, res) => {
       select: { state_id: true, state_name: true },
     }),
 
-    // Query 14: Top 10 most recent Medium/High risk alerts with linked work, state, district, and MP details
+    // Query 14: Top 10 most recent High/Medium risk alerts with deterministic ordering
     prisma.riskScore.findMany({
       where: {
         is_current: true,
         risk_level: { in: ["Medium", "High"] },
+        work: {
+          status: { not: "Recommended" },
+        },
       },
-      orderBy: {
-        calculated_at: "desc",
-      },
+      orderBy: [
+        { risk_score: "desc" },
+        { calculated_at: "desc" },
+        { risk_id: "desc" },
+      ],
       take: 10,
       include: {
         work: {
@@ -146,12 +163,12 @@ export const getNationalOverview = asyncHandler(async (req, res) => {
   ]);
 
   // Compute KPI numbers
-  // Lakhs to Crores: / 100, rounded to 2 decimal places
+  // Stored in Rupees. Rupees to Crores: / 10,000,000, rounded to 2 decimal places
   const totalSanctionedCr = Number(
-    (Number(sanctionedAgg._sum.sanctioned_amount || 0) / 100).toFixed(2)
+    (Number(sanctionedAgg._sum.sanctioned_amount || 0) / 10000000).toFixed(2)
   );
   const totalExpenditureCr = Number(
-    (Number(expenditureAgg._sum.amount || 0) / 100).toFixed(2)
+    (Number(expenditureAgg._sum.amount || 0) / 10000000).toFixed(2)
   );
 
   const completionRate =
@@ -169,12 +186,14 @@ export const getNationalOverview = asyncHandler(async (req, res) => {
       ? Number(((totalFlaggedCases / totalSanctionedWorks) * 100).toFixed(1))
       : 0;
 
+  // Severity breakdown strictly represents the canonical flagged cases population (Medium + High)
   const riskDistribution = { low: 0, medium: 0, high: 0 };
   riskScoreGroups.forEach((g) => {
-    if (g.risk_level === "Low") riskDistribution.low = g._count._all;
     if (g.risk_level === "Medium") riskDistribution.medium = g._count._all;
     if (g.risk_level === "High") riskDistribution.high = g._count._all;
   });
+  // Low-risk works are within SLA tolerance and not flagged for review
+  riskDistribution.low = 0;
 
   const kpis = {
     totalWorksRecommended,
@@ -211,7 +230,7 @@ export const getNationalOverview = asyncHandler(async (req, res) => {
     const totalWorks = w._count._all;
     const completed = completedMap.get(w.state_id) || 0;
     const sanctionedCr = Number(
-      (Number(w._sum.sanctioned_amount || 0) / 100).toFixed(2)
+      (Number(w._sum.sanctioned_amount || 0) / 10000000).toFixed(2)
     );
     const highRisk = highRiskMap.get(w.state_id) || 0;
     const medRisk = medRiskMap.get(w.state_id) || 0;
@@ -244,19 +263,35 @@ export const getNationalOverview = asyncHandler(async (req, res) => {
     .sort((a, b) => b.riskIndex - a.riskIndex)
     .slice(0, 5);
 
-  // Map 10 recent alerts
+  // Map 10 recent alerts with robust amount handling and Lakh conversion
   const recentAlerts = recentAlertsRows
     .filter((r) => r.work)
-    .map((r) => ({
-      workId: r.work.work_id,
-      state: r.work.state?.state_name || "",
-      district: r.work.district?.district_name || "",
-      mpName: r.work.mp?.mp_name || "",
-      riskLevel: r.risk_level || "Medium",
-      riskScore: r.risk_score !== null ? Number(r.risk_score) : 0,
-      flagReason: r.flag_reason || "",
-      sanctionedAmount: Number(r.work.sanctioned_amount || 0),
-    }));
+    .map((r) => {
+      const rawAmount =
+        r.work.sanctioned_amount !== null && r.work.sanctioned_amount !== undefined
+          ? r.work.sanctioned_amount
+          : r.work.recommended_amount;
+      const isEstimated =
+        (r.work.sanctioned_amount === null || r.work.sanctioned_amount === undefined) &&
+        r.work.recommended_amount !== null &&
+        r.work.recommended_amount !== undefined;
+      const sanctionedAmount =
+        rawAmount !== null && rawAmount !== undefined && Number(rawAmount) > 0
+          ? Number((Number(rawAmount) / 100000).toFixed(1))
+          : null;
+
+      return {
+        workId: r.work.work_id,
+        state: r.work.state?.state_name || "",
+        district: r.work.district?.district_name || "",
+        mpName: r.work.mp?.mp_name || "",
+        riskLevel: r.risk_level || "High",
+        riskScore: r.risk_score !== null ? Number(r.risk_score) : 0,
+        flagReason: r.flag_reason || "",
+        sanctionedAmount,
+        isEstimated,
+      };
+    });
 
   return res.status(200).json({
     kpis,
@@ -275,8 +310,9 @@ export const getNationalOverview = asyncHandler(async (req, res) => {
 export const getFlaggedWorks = asyncHandler(async (req, res) => {
   const { search, state, category, riskLevel, status, financialYear } = req.query;
 
-  // Base filter: Only include works that have a related RiskScore with risk_level IN ('Medium', 'High')
+  // Base filter: Only include sanctioned works that have a current RiskScore with risk_level IN ('Medium', 'High')
   const where = {
+    status: { not: "Recommended" },
     current_risk_score: {
       risk_level: {
         in: ["Medium", "High"],

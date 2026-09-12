@@ -10,7 +10,13 @@ import {
  * Accessible to any authenticated role.
  */
 export const getWorkById = asyncHandler(async (req, res) => {
-  const { workId } = req.params;
+  let workId = req.params.workId || req.query.workId;
+  if (Array.isArray(workId)) {
+    workId = workId.join("/");
+  }
+  if (workId) {
+    workId = decodeURIComponent(workId);
+  }
   const work = await getWorkDetail(workId);
 
   if (!work) {
@@ -26,7 +32,13 @@ export const getWorkById = asyncHandler(async (req, res) => {
  * Restricted to roles: 'ministry', 'district', 'state', 'auditor'.
  */
 export const issueAuditNotice = asyncHandler(async (req, res) => {
-  const { workId } = req.params;
+  let workId = req.params.workId || req.body.workId;
+  if (Array.isArray(workId)) {
+    workId = workId.join("/");
+  }
+  if (workId) {
+    workId = decodeURIComponent(workId);
+  }
   const result = await issueAuditNoticeService(workId, req.user);
   return res.status(200).json(result);
 });

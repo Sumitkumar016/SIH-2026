@@ -14,49 +14,40 @@ import { apiFetch } from './apiClient';
  * Can be effortlessly swapped with real Axios / fetch REST endpoints later.
  */
 
+// In-flight request deduplication & last valid data cache
+let inFlightOverviewPromise = null;
+let lastValidOverviewData = null;
+
 export const mpladsService = {
   // Fetch National Overview summary metrics & state data
-  async getNationalOverviewMetrics() {
-    try {
-      const remote = await apiFetch('/api/ministry/overview');
-      if (remote && remote.kpis && remote.statesData) {
-        return remote;
-      }
-    } catch {
-      // Gracefully fall back to local seed/mock data when backend is not reached
+  async getNationalOverviewMetrics(forceRefresh = false) {
+    if (!forceRefresh && inFlightOverviewPromise) {
+      return inFlightOverviewPromise;
     }
 
-    // Calculate India-wide totals from state aggregates
-    const totalWorks = mockStateRiskData.reduce((acc, s) => acc + s.totalWorks, 0);
-    const totalSanctionedCr = mockStateRiskData.reduce((acc, s) => acc + s.sanctionedCr, 0);
-    const totalCompleted = mockStateRiskData.reduce((acc, s) => acc + s.completed, 0);
-    const totalFlagged = mockStateRiskData.reduce((acc, s) => acc + s.flaggedCount, 0);
-    const totalHighRisk = mockStateRiskData.reduce((acc, s) => acc + s.highRisk, 0);
-    const totalMedRisk = mockStateRiskData.reduce((acc, s) => acc + s.medRisk, 0);
-    const totalLowRisk = mockStateRiskData.reduce((acc, s) => acc + s.lowRisk, 0);
-    const nationalExpenditureCr = Math.round(totalSanctionedCr * 0.842 * 10) / 10;
-
-    return {
-      kpis: {
-        totalWorksRecommended: totalWorks + 1420,
-        totalSanctionedWorks: totalWorks,
-        totalCompletedWorks: totalCompleted,
-        completionRate: Math.round((totalCompleted / totalWorks) * 1000) / 10,
-        totalSanctionedCr: Math.round(totalSanctionedCr * 10) / 10,
-        totalExpenditureCr: nationalExpenditureCr,
-        expenditureRatio: Math.round((nationalExpenditureCr / totalSanctionedCr) * 1000) / 10,
-        totalFlaggedCases: totalFlagged,
-        flaggedRatePercent: Math.round((totalFlagged / totalWorks) * 1000) / 10,
-        riskDistribution: {
-          high: totalHighRisk,
-          medium: totalMedRisk,
-          low: totalLowRisk,
+    inFlightOverviewPromise = (async () => {
+      try {
+        const remote = await apiFetch('/api/ministry/overview');
+        if (remote && remote.kpis && remote.statesData) {
+          lastValidOverviewData = remote;
+          return remote;
         }
-      },
-      statesData: mockStateRiskData,
-      recentAlerts: mockWorksData.filter(w => w.riskLevel === 'High' || w.riskScore >= 70).slice(0, 8),
-      topAttentionStates: [...mockStateRiskData].sort((a, b) => b.riskIndex - a.riskIndex).slice(0, 5)
-    };
+        throw new Error('Invalid overview data received from server');
+      } catch (err) {
+        // If we have previously loaded valid data, preserve it rather than crashing
+        if (lastValidOverviewData) {
+          return lastValidOverviewData;
+        }
+        // Do not silently substitute fake mock data; throw so UI shows ErrorState
+        throw err;
+      } finally {
+        setTimeout(() => {
+          inFlightOverviewPromise = null;
+        }, 300);
+      }
+    })();
+
+    return inFlightOverviewPromise;
   },
 
   // Fetch All Flagged Works with filtering & pagination

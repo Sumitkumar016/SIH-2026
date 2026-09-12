@@ -90,10 +90,10 @@ export default function NationalOverviewPage() {
 
   // Pie chart data for National Risk Distribution
   const pieData = kpis ? [
-    { name: 'Low Risk', value: kpis.riskDistribution?.low || 0, color: '#10B981' },
+    ...(kpis.riskDistribution?.low > 0 ? [{ name: 'Low Risk', value: kpis.riskDistribution.low, color: '#10B981' }] : []),
     { name: 'Medium Risk', value: kpis.riskDistribution?.medium || 0, color: '#F59E0B' },
     { name: 'High Risk', value: kpis.riskDistribution?.high || 0, color: '#EF4444' },
-  ] : [];
+  ].filter(p => p.value > 0) : [];
 
   // States formatted for Centerpiece Chart
   const sortedStates = [...statesData].sort((a, b) => b.flaggedCount - a.flaggedCount);
@@ -550,7 +550,11 @@ export default function NationalOverviewPage() {
                 <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-200/60">
                   <span>MP: {work.mpName}</span>
                   <div className="flex items-center gap-3">
-                    <span className="font-mono font-medium">₹{work.sanctionedAmount?.toFixed(1)}L</span>
+                    <span className="font-mono font-medium">
+                      {work.sanctionedAmount !== null && work.sanctionedAmount !== undefined && work.sanctionedAmount > 0
+                        ? `₹${work.sanctionedAmount.toFixed(1)}L${work.isEstimated ? ' (Est.)' : ''}`
+                        : 'Cost Not Available'}
+                    </span>
                     <span className="text-[#1D9BF0] font-semibold flex items-center group-hover:translate-x-0.5 transition-transform">
                       Inspect Work <ChevronRight className="w-3 h-3 ml-0.5" />
                     </span>

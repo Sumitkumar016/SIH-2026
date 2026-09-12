@@ -29,18 +29,39 @@ const enrichUser = (userProfile) => {
  * Persists purely in React memory without localStorage / sessionStorage.
  */
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
+  const [token, setToken] = useState(() => {
+    try {
+      return sessionStorage.getItem('mplads_auth_token') || null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [user, setUser] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('mplads_auth_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
   const [loading, setLoading] = useState(false);
 
-  // If in-memory token exists on mount/refresh, verify session with backend
+  // Initialize in-memory API token on mount if session exists
   useEffect(() => {
     if (token) {
+      setAuthToken(token);
       authApi.getMe()
         .then((userData) => {
-          setUser(enrichUser(userData));
+          const enriched = enrichUser(userData);
+          setUser(enriched);
+          try {
+            sessionStorage.setItem('mplads_auth_user', JSON.stringify(enriched));
+          } catch {}
         })
         .catch(() => {
+          // Token is invalid/expired
           logout();
         });
     }
@@ -59,6 +80,10 @@ export function AuthProvider({ children }) {
       setAuthToken(res.token);
       const enriched = enrichUser(res.user);
       setUser(enriched);
+      try {
+        sessionStorage.setItem('mplads_auth_token', res.token);
+        sessionStorage.setItem('mplads_auth_user', JSON.stringify(enriched));
+      } catch {}
       return { success: true, user: enriched, token: res.token };
     } catch (err) {
       return { success: false, error: err.message || 'Invalid email or password' };
@@ -79,12 +104,16 @@ export function AuthProvider({ children }) {
   };
 
   /**
-   * Log out session and clear all in-memory tokens
+   * Log out session and clear all tokens
    */
   const logout = () => {
     setUser(null);
     setToken(null);
     setAuthToken(null);
+    try {
+      sessionStorage.removeItem('mplads_auth_token');
+      sessionStorage.removeItem('mplads_auth_user');
+    } catch {}
   };
 
   const value = {

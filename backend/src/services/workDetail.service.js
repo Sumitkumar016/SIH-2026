@@ -53,7 +53,8 @@ export function flattenWork(work) {
     vendorName = largest?.vendor?.vendor_name || null;
   }
 
-  const expenditure = Number(totalExpenditureAmount.toFixed(2));
+  // Stored in Rupees; convert to Lakhs (/ 100,000) for UI display
+  const expenditure = Number((totalExpenditureAmount / 100000).toFixed(2));
 
   // 2. Resolve physical progress from the most recent progress report
   let physicalProgress = 0;
@@ -128,6 +129,14 @@ export function flattenWork(work) {
   const completionDate = work.completion_date
     ? new Date(work.completion_date).toISOString()
     : null;
+  const rawAmount =
+    work.sanctioned_amount !== null && work.sanctioned_amount !== undefined
+      ? work.sanctioned_amount
+      : work.recommended_amount;
+  const isEstimated =
+    (work.sanctioned_amount === null || work.sanctioned_amount === undefined) &&
+    work.recommended_amount !== null &&
+    work.recommended_amount !== undefined;
 
   // 6. Base flattened project details
   const flattened = {
@@ -138,7 +147,11 @@ export function flattenWork(work) {
     district: work.district?.district_name || "",
     category: work.category || "",
     description: work.description || "",
-    sanctionedAmount: Number(Number(work.sanctioned_amount || 0).toFixed(2)),
+    sanctionedAmount:
+      rawAmount !== null && rawAmount !== undefined && Number(rawAmount) > 0
+        ? Number((Number(rawAmount) / 100000).toFixed(2))
+        : 0,
+    isEstimated,
     expenditure,
     physicalProgress,
     status,

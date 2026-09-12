@@ -60,7 +60,8 @@ function RootRedirect() {
  */
 function CasesRedirect() {
   const { user, isAuthenticated } = useAuth();
-  const { workId } = useParams();
+  const params = useParams();
+  const workId = params['*'] || params.workId;
   if (!isAuthenticated || !user) {
     return <Navigate to="/login" replace />;
   }
@@ -86,7 +87,7 @@ export default function App() {
               <Route path="flagged" element={<FlaggedCasesPage />} />
               <Route path="trends" element={<TrendsAnalyticsPage />} />
               <Route path="predictions" element={<PredictiveForecastPage />} />
-              <Route path="cases/:workId" element={<WorkDetailPage />} />
+              <Route path="cases/*" element={<WorkDetailPage />} />
             </Route>
           </Route>
 
@@ -95,7 +96,7 @@ export default function App() {
             <Route path="/state" element={<StateDashboardLayout />}>
               <Route index element={<Navigate to="/state/overview" replace />} />
               <Route path="overview" element={<StateOverviewPage />} />
-              <Route path="cases/:workId" element={<WorkDetailPage />} />
+              <Route path="cases/*" element={<WorkDetailPage />} />
             </Route>
           </Route>
 
@@ -105,7 +106,7 @@ export default function App() {
               <Route index element={<Navigate to="/mp/overview" replace />} />
               <Route path="overview" element={<MpConstituencyOverviewPage />} />
               <Route path="works" element={<MpWorksListPage />} />
-              <Route path="cases/:workId" element={<WorkDetailPage />} />
+              <Route path="cases/*" element={<WorkDetailPage />} />
             </Route>
           </Route>
 
@@ -115,7 +116,7 @@ export default function App() {
               <Route index element={<Navigate to="/district/overview" replace />} />
               <Route path="overview" element={<DistrictOverviewPage />} />
               <Route path="verification" element={<DistrictVerificationQueuePage />} />
-              <Route path="cases/:workId" element={<WorkDetailPage />} />
+              <Route path="cases/*" element={<WorkDetailPage />} />
             </Route>
           </Route>
 
@@ -125,13 +126,13 @@ export default function App() {
               <Route index element={<Navigate to="/auditor/queue" replace />} />
               <Route path="queue" element={<AuditorCaseQueuePage />} />
               <Route path="case/:workId" element={<AuditorCaseDetailPage />} />
-              <Route path="cases/:workId" element={<WorkDetailPage />} />
+              <Route path="cases/*" element={<WorkDetailPage />} />
               <Route path="vendor" element={<AuditorVendorToolPage />} />
             </Route>
           </Route>
 
-          {/* Shared Dynamic Case Route: /cases/:workId */}
-          <Route path="/cases/:workId" element={<CasesRedirect />} />
+          {/* Shared Dynamic Case Route: /cases/* */}
+          <Route path="/cases/*" element={<CasesRedirect />} />
 
           {/* Fallback Root Redirects */}
           <Route path="/" element={<RootRedirect />} />

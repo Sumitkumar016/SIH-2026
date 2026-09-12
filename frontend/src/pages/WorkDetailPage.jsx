@@ -54,7 +54,9 @@ import { useAuth } from '../context/AuthContext';
  * - /cases/:workId (redirects based on role)
  */
 export default function WorkDetailPage() {
-  const { workId } = useParams();
+  const params = useParams();
+  const rawWorkId = params['*'] || params.workId || '';
+  const workId = rawWorkId ? decodeURIComponent(rawWorkId) : '';
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
