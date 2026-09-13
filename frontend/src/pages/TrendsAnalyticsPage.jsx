@@ -279,7 +279,7 @@ export default function TrendsAnalyticsPage() {
   // Scoped Filter States (Local to this page only)
   const [selectedState, setSelectedState] = useState('ALL');
   const [selectedDistrict, setSelectedDistrict] = useState('ALL');
-  const [timePeriod, setTimePeriod] = useState('12'); // '3' | '6' | '12'
+  const [timePeriod, setTimePeriod] = useState('3'); // '3' | '6' | '12'
   const [stateSortMode, setStateSortMode] = useState('highestRisk'); // 'highestRisk' | 'bestCompletion'
 
   // 1. Locations Query (Hierarchy of States & Districts for Header Dropdowns)
