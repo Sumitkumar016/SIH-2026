@@ -37,6 +37,11 @@ function generateRiskTrajectory(currentScore, predictedScore) {
 export async function getPredictiveWatchlist(filters = {}) {
   const { search, state, category } = filters;
 
+  const page = Math.max(1, parseInt(filters.page || 1, 10));
+  const limit = Math.max(1, Math.min(100, parseInt(filters.limit || 15, 10)));
+  const skip = (page - 1) * limit;
+  const take = limit;
+
   const where = {
     prediction: {
       isNot: null,
@@ -71,56 +76,61 @@ export async function getPredictiveWatchlist(filters = {}) {
     ];
   }
 
-  // 4. Query works with prediction records
-  const works = await prisma.work.findMany({
-    where,
-    select: {
-      work_id: true,
-      category: true,
-      sanctioned_amount: true,
-      status: true,
-      completion_date: true,
-      mp: {
-        select: {
-          mp_name: true,
+  // 4. Query total count and paginated works in PostgreSQL
+  const [total, works] = await prisma.$transaction([
+    prisma.work.count({ where }),
+    prisma.work.findMany({
+      where,
+      skip,
+      take,
+      select: {
+        work_id: true,
+        category: true,
+        sanctioned_amount: true,
+        status: true,
+        completion_date: true,
+        mp: {
+          select: {
+            mp_name: true,
+          },
+        },
+        state: {
+          select: {
+            state_name: true,
+          },
+        },
+        district: {
+          select: {
+            district_name: true,
+          },
+        },
+        prediction: true,
+        current_risk_score: {
+          select: {
+            risk_score: true,
+            risk_level: true,
+            delay_slippage_pct: true,
+            flag_reason: true,
+          },
+        },
+        auditor_reports: {
+          select: {
+            status: true,
+          },
+        },
+        escalations: {
+          select: {
+            escalation_id: true,
+          },
         },
       },
-      state: {
-        select: {
-          state_name: true,
+      orderBy: {
+        prediction: {
+          risk_delta_pct: "desc",
         },
       },
-      district: {
-        select: {
-          district_name: true,
-        },
-      },
-      prediction: true,
-      current_risk_score: {
-        select: {
-          risk_score: true,
-          risk_level: true,
-          delay_slippage_pct: true,
-          flag_reason: true,
-        },
-      },
-      auditor_reports: {
-        select: {
-          status: true,
-        },
-      },
-      escalations: {
-        select: {
-          escalation_id: true,
-        },
-      },
-    },
-    orderBy: {
-      prediction: {
-        predicted_at: "desc",
-      },
-    },
-  });
+    }),
+  ]);
 
   // 5. Filter and format watchlist items
   const data = [];
@@ -128,16 +138,6 @@ export async function getPredictiveWatchlist(filters = {}) {
   for (const work of works) {
     const pred = work.prediction;
     if (!pred) continue;
-
-    // Verify work is active on watchlist
-    const isOnWatchlist =
-      pred.is_on_watchlist !== undefined
-        ? pred.is_on_watchlist
-        : pred.isOnWatchlist !== undefined
-        ? pred.isOnWatchlist
-        : true;
-
-    if (!isOnWatchlist) continue;
 
     const currentStatus = getDisplayStatus(work);
 
@@ -191,7 +191,20 @@ export async function getPredictiveWatchlist(filters = {}) {
     });
   }
 
-  return { data };
+  const totalPages = Math.ceil(total / limit) || 1;
+
+  return {
+    data,
+    total,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages,
+      hasNextPage: page < totalPages,
+      hasPreviousPage: page > 1,
+    },
+  };
 }
 
 export default {

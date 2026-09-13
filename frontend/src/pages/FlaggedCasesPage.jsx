@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
 import {
   Download,
@@ -9,12 +9,15 @@ import {
   ExternalLink,
   ShieldCheck,
   FileSpreadsheet,
+  Loader2,
 } from 'lucide-react';
 import RiskBadge from '../components/common/RiskBadge';
 import SearchBox from '../components/common/SearchBox';
 import FilterBar from '../components/common/FilterBar';
 import { ErrorState, EmptyState } from '../components/common/loading';
 import { mpladsService } from '../api/mpladsService';
+
+const EXPORT_BATCH_SIZE = 50;
 
 /**
  * PAGE 2: All Flagged Cases
@@ -24,6 +27,8 @@ export default function FlaggedCasesPage() {
   const { onOpenWorkDetail } = useOutletContext();
   const [searchParams] = useSearchParams();
   const [works, setWorks] = useState([]);
+  const [availableCategories, setAvailableCategories] = useState([]);
+  const [availableStates, setAvailableStates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -42,51 +47,95 @@ export default function FlaggedCasesPage() {
   const [sortField, setSortField] = useState('riskScore');
   const [sortDirection, setSortDirection] = useState('desc'); // 'asc' | 'desc'
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const pageSize = 10;
 
-  const loadWorks = async () => {
+  // CSV Export State
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportStatus, setExportStatus] = useState('');
+
+  // Mounted ref to guard against state updates after unmount during CSV exports
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  // AbortController ref to safely manage in-flight requests and prevent out-of-order race conditions
+  const abortControllerRef = useRef(null);
+
+  // Reset to page 1 whenever filters or search change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filters]);
+
+  // Hoisted data loader with AbortController protection and retry capability
+  const loadWorks = useCallback(async () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       setLoading(true);
       setError(null);
-      const res = await mpladsService.getFlaggedWorks({
-        search: searchQuery,
-        ...filters,
-      });
-      setWorks(res.data || []);
-      setCurrentPage(1); // reset to page 1 on filter change
+
+      const res = await mpladsService.getFlaggedWorks(
+        {
+          search: searchQuery,
+          ...filters,
+          page: currentPage,
+          limit: pageSize,
+          sortField,
+          sortDirection,
+        },
+        { signal: controller.signal }
+      );
+
+      // Discard state updates if another request was triggered
+      if (abortControllerRef.current !== controller) return;
+
+      const incoming = res.data || [];
+      setWorks(incoming);
+      setTotalCount(res.pagination?.total ?? res.total ?? incoming.length);
+      setTotalPages(
+        res.pagination?.totalPages ??
+          Math.max(1, Math.ceil((res.total || incoming.length) / pageSize))
+      );
+
+      // Directly consume complete uncached live metadata from server
+      if (Array.isArray(res.availableStates)) {
+        setAvailableStates(res.availableStates);
+      }
+      if (Array.isArray(res.availableCategories)) {
+        setAvailableCategories(res.availableCategories);
+      }
     } catch (err) {
+      if (err?.name === 'AbortError' || err?.isAborted) {
+        // Request was aborted in favor of a newer query - do not update state
+        return;
+      }
       console.error('Failed to load flagged works:', err);
       setError(err?.message || 'Failed to retrieve flagged cases.');
     } finally {
-      setLoading(false);
+      if (abortControllerRef.current === controller) {
+        setLoading(false);
+      }
     }
-  };
+  }, [searchQuery, filters, currentPage, sortField, sortDirection]);
 
   useEffect(() => {
     loadWorks();
-  }, [searchQuery, filters]);
-
-  // Client-side Sorting
-  const sortedWorks = useMemo(() => {
-    return [...works].sort((a, b) => {
-      let valA = a[sortField];
-      let valB = b[sortField];
-
-      if (typeof valA === 'string') valA = valA.toLowerCase();
-      if (typeof valB === 'string') valB = valB.toLowerCase();
-
-      if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
-      if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
-      return 0;
-    });
-  }, [works, sortField, sortDirection]);
-
-  // Pagination Slice
-  const totalPages = Math.ceil(sortedWorks.length / pageSize) || 1;
-  const paginatedWorks = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return sortedWorks.slice(start, start + pageSize);
-  }, [sortedWorks, currentPage, pageSize]);
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [loadWorks]);
 
   const handleSort = (field) => {
     if (sortField === field) {
@@ -95,6 +144,7 @@ export default function FlaggedCasesPage() {
       setSortField(field);
       setSortDirection('desc');
     }
+    setCurrentPage(1);
   };
 
   const handleFilterChange = (key, value) => {
@@ -110,38 +160,109 @@ export default function FlaggedCasesPage() {
       status: 'All',
       financialYear: 'All',
     });
+    setCurrentPage(1);
   };
 
-  // CSV Export handler
-  const handleExportCSV = () => {
-    const headers = ['Work ID', 'MP Name', 'State', 'District', 'Category', 'Risk Score', 'Risk Level', 'Sanctioned Amount (Lakhs)', 'Expenditure (Lakhs)', 'Status', 'Flag Reason'];
-    const rows = sortedWorks.map(w => [
-      `"${w.workId}"`,
-      `"${w.mpName}"`,
-      `"${w.state}"`,
-      `"${w.district}"`,
-      `"${w.category}"`,
-      w.riskScore,
-      `"${w.riskLevel}"`,
-      w.sanctionedAmount,
-      w.expenditure || 0,
-      `"${w.status}"`,
-      `"${(w.flagReason || '').replace(/"/g, '""')}"`,
-    ]);
+  // Batched CSV Export handler (fetches all filtered rows sequentially using safe batch size)
+  const handleExportCSV = async () => {
+    if (totalCount === 0) {
+      alert('No flagged works to export with the current filter criteria.');
+      return;
+    }
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `MPLADS_Flagged_For_Review_Export_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      if (isMountedRef.current) {
+        setIsExporting(true);
+        setExportStatus('Starting export...');
+      }
+
+      const totalBatches = Math.ceil(totalCount / EXPORT_BATCH_SIZE);
+      let allRows = [];
+
+      for (let batchNum = 1; batchNum <= totalBatches; batchNum++) {
+        if (!isMountedRef.current) break;
+        if (isMountedRef.current) {
+          setExportStatus(`Preparing export... (${allRows.length} of ${totalCount})`);
+        }
+
+        const res = await mpladsService.getFlaggedWorks({
+          search: searchQuery,
+          ...filters,
+          sortField,
+          sortDirection,
+          page: batchNum,
+          limit: EXPORT_BATCH_SIZE,
+        });
+
+        if (!isMountedRef.current) break;
+
+        const batchData = res.data || [];
+        allRows = allRows.concat(batchData);
+
+        if (batchData.length < EXPORT_BATCH_SIZE) {
+          break;
+        }
+      }
+
+      if (!isMountedRef.current) return;
+      if (isMountedRef.current) {
+        setExportStatus(`Generating CSV (${allRows.length} records)...`);
+      }
+
+      const headers = [
+        'Work ID',
+        'MP Name',
+        'Category',
+        'State',
+        'District',
+        'Risk Score',
+        'Risk Level',
+        'Sanctioned Amount (Lakhs)',
+        'Expenditure (Lakhs)',
+        'Status',
+        'Flag Reason',
+      ];
+
+      const rows = allRows.map((w) => [
+        `"${w.workId}"`,
+        `"${w.mpName}"`,
+        `"${w.category}"`,
+        `"${w.state}"`,
+        `"${w.district}"`,
+        w.riskScore,
+        `"${w.riskLevel}"`,
+        w.sanctionedAmount ?? 0,
+        w.expenditure || 0,
+        `"${w.status}"`,
+        `"${(w.flagReason || '').replace(/"/g, '""')}"`,
+      ]);
+
+      const csvContent =
+        'data:text/csv;charset=utf-8,' +
+        [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute(
+        'download',
+        `MPLADS_Flagged_For_Review_Export_${new Date().toISOString().slice(0, 10)}.csv`
+      );
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error('Failed to export CSV:', err);
+      alert(`Export failed: ${err.message || 'Network error'}`);
+    } finally {
+      if (isMountedRef.current) {
+        setIsExporting(false);
+        setExportStatus('');
+      }
+    }
   };
 
   return (
     <div className="space-y-5 animate-in fade-in duration-300">
-      
       {/* Header & Export Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -155,10 +276,20 @@ export default function FlaggedCasesPage() {
 
         <button
           onClick={handleExportCSV}
-          className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-[#0F1419] bg-white border border-[#EFF3F4] rounded-xl hover:bg-[#F7F9F9] hover:border-slate-300 transition-all shadow-xs self-start sm:self-auto"
+          disabled={isExporting || totalCount === 0 || loading}
+          className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-[#0F1419] bg-white border border-[#EFF3F4] rounded-xl hover:bg-[#F7F9F9] hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-xs self-start sm:self-auto"
         >
-          <Download className="w-4 h-4 text-slate-600" />
-          <span>Export Flagged List (CSV)</span>
+          {isExporting ? (
+            <>
+              <Loader2 className="w-4 h-4 text-[#1D9BF0] animate-spin" />
+              <span>{exportStatus || 'Preparing export...'}</span>
+            </>
+          ) : (
+            <>
+              <Download className="w-4 h-4 text-slate-600" />
+              <span>Export Flagged List (CSV)</span>
+            </>
+          )}
         </button>
       </div>
 
@@ -173,6 +304,8 @@ export default function FlaggedCasesPage() {
           filters={filters}
           onFilterChange={handleFilterChange}
           onReset={handleResetFilters}
+          availableStates={availableStates}
+          availableCategories={availableCategories}
         />
       </div>
 
@@ -182,6 +315,7 @@ export default function FlaggedCasesPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-[#F7F9F9] border-b border-[#EFF3F4] text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                {/* 1. Work ID */}
                 <th
                   onClick={() => handleSort('workId')}
                   className="py-3 px-4 cursor-pointer hover:text-[#1D9BF0] transition-colors"
@@ -191,6 +325,8 @@ export default function FlaggedCasesPage() {
                     <ArrowUpDown className="w-3 h-3" />
                   </div>
                 </th>
+
+                {/* 2. Recommending MP */}
                 <th
                   onClick={() => handleSort('mpName')}
                   className="py-3 px-4 cursor-pointer hover:text-[#1D9BF0] transition-colors"
@@ -200,6 +336,19 @@ export default function FlaggedCasesPage() {
                     <ArrowUpDown className="w-3 h-3" />
                   </div>
                 </th>
+
+                {/* 3. Category (Dedicated Column) */}
+                <th
+                  onClick={() => handleSort('category')}
+                  className="py-3 px-4 cursor-pointer hover:text-[#1D9BF0] transition-colors"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>Category</span>
+                    <ArrowUpDown className="w-3 h-3" />
+                  </div>
+                </th>
+
+                {/* 4. State / District */}
                 <th
                   onClick={() => handleSort('state')}
                   className="py-3 px-4 cursor-pointer hover:text-[#1D9BF0] transition-colors"
@@ -209,6 +358,8 @@ export default function FlaggedCasesPage() {
                     <ArrowUpDown className="w-3 h-3" />
                   </div>
                 </th>
+
+                {/* 5. Risk Level & Score */}
                 <th
                   onClick={() => handleSort('riskScore')}
                   className="py-3 px-4 cursor-pointer hover:text-[#1D9BF0] transition-colors text-center"
@@ -218,9 +369,13 @@ export default function FlaggedCasesPage() {
                     <ArrowUpDown className="w-3 h-3" />
                   </div>
                 </th>
+
+                {/* 6. Flag Reason / Diagnostic Signal */}
                 <th className="py-3 px-4 min-w-[220px]">
                   Flag Reason / Diagnostic Signal
                 </th>
+
+                {/* 7. Sanctioned */}
                 <th
                   onClick={() => handleSort('sanctionedAmount')}
                   className="py-3 px-4 text-right cursor-pointer hover:text-[#1D9BF0] transition-colors"
@@ -230,6 +385,8 @@ export default function FlaggedCasesPage() {
                     <ArrowUpDown className="w-3 h-3" />
                   </div>
                 </th>
+
+                {/* 8. Status */}
                 <th
                   onClick={() => handleSort('status')}
                   className="py-3 px-4 cursor-pointer hover:text-[#1D9BF0] transition-colors"
@@ -242,10 +399,14 @@ export default function FlaggedCasesPage() {
               </tr>
             </thead>
 
-            <tbody className={`divide-y divide-[#EFF3F4] text-xs ${loading && works.length > 0 ? 'opacity-70 transition-opacity' : ''}`}>
+            <tbody
+              className={`divide-y divide-[#EFF3F4] text-xs ${
+                loading && works.length > 0 ? 'opacity-70 transition-opacity' : ''
+              }`}
+            >
               {error ? (
                 <tr>
-                  <td colSpan={7} className="py-8">
+                  <td colSpan={8} className="py-8">
                     <ErrorState
                       title="Failed to Load Flagged Cases"
                       message={error}
@@ -256,18 +417,37 @@ export default function FlaggedCasesPage() {
               ) : loading && works.length === 0 ? (
                 Array.from({ length: 6 }).map((_, i) => (
                   <tr key={i} className="animate-pulse">
-                    <td className="py-4 px-4"><div className="h-4 bg-slate-200 rounded w-20" /></td>
-                    <td className="py-4 px-4"><div className="h-4 bg-slate-200 rounded w-28 mb-1" /><div className="h-3 bg-slate-100 rounded w-16" /></td>
-                    <td className="py-4 px-4"><div className="h-4 bg-slate-200 rounded w-24 mb-1" /><div className="h-3 bg-slate-100 rounded w-14" /></td>
-                    <td className="py-4 px-4 text-center"><div className="h-6 bg-slate-200 rounded-full w-16 mx-auto" /></td>
-                    <td className="py-4 px-4"><div className="h-4 bg-slate-200 rounded w-48 mb-1" /><div className="h-3 bg-slate-100 rounded w-32" /></td>
-                    <td className="py-4 px-4 text-right"><div className="h-4 bg-slate-200 rounded w-14 ml-auto" /></td>
-                    <td className="py-4 px-4"><div className="h-5 bg-slate-200 rounded w-16" /></td>
+                    <td className="py-4 px-4">
+                      <div className="h-4 bg-slate-200 rounded w-20" />
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="h-4 bg-slate-200 rounded w-28" />
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="h-4 bg-slate-200 rounded w-24" />
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="h-4 bg-slate-200 rounded w-24 mb-1" />
+                      <div className="h-3 bg-slate-100 rounded w-16" />
+                    </td>
+                    <td className="py-4 px-4 text-center">
+                      <div className="h-6 bg-slate-200 rounded-full w-24 mx-auto" />
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="h-4 bg-slate-200 rounded w-48 mb-1" />
+                      <div className="h-3 bg-slate-100 rounded w-32" />
+                    </td>
+                    <td className="py-4 px-4 text-right">
+                      <div className="h-4 bg-slate-200 rounded w-14 ml-auto" />
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="h-5 bg-slate-200 rounded w-16" />
+                    </td>
                   </tr>
                 ))
-              ) : paginatedWorks.length === 0 ? (
+              ) : works.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8">
+                  <td colSpan={8} className="py-8">
                     <EmptyState
                       icon={ShieldCheck}
                       title="No Flagged Works Found"
@@ -278,13 +458,13 @@ export default function FlaggedCasesPage() {
                   </td>
                 </tr>
               ) : (
-                paginatedWorks.map((w) => (
+                works.map((w) => (
                   <tr
                     key={w.workId}
                     onClick={() => onOpenWorkDetail(w)}
                     className="hover:bg-[#F7F9F9] cursor-pointer transition-colors group"
                   >
-                    {/* Work ID */}
+                    {/* 1. Work ID */}
                     <td className="py-3.5 px-4 font-mono font-bold text-[#0F1419] group-hover:text-[#1D9BF0]">
                       <div className="flex items-center gap-1.5">
                         <span>{w.workId}</span>
@@ -292,62 +472,56 @@ export default function FlaggedCasesPage() {
                       </div>
                     </td>
 
-                    {/* MP Name */}
-                    <td className="py-3.5 px-4 font-medium text-[#0F1419]">
-                      <div>{w.mpName}</div>
-                      <div className="text-[10px] text-slate-400 font-normal">{w.category}</div>
+                    {/* 2. Recommending MP */}
+                    <td className="py-3.5 px-4">
+                      <div className="font-semibold text-[#0F1419]">{w.mpName}</div>
                     </td>
 
-                    {/* State & District */}
-                    <td className="py-3.5 px-4 text-slate-600 font-medium">
-                      <div>{w.state}</div>
-                      <div className="text-[10px] text-slate-400">{w.district}</div>
+                    {/* 3. Category (Dedicated Column) */}
+                    <td className="py-3.5 px-4 font-medium text-slate-700">
+                      {w.category}
                     </td>
 
-                    {/* Risk Badge & Score */}
+                    {/* 4. State / District */}
+                    <td className="py-3.5 px-4">
+                      <div className="font-semibold text-[#0F1419]">{w.state}</div>
+                      <div className="text-[10px] text-slate-500">{w.district}</div>
+                    </td>
+
+                    {/* 5. Risk Level & Score (Single Badge: 🔴 High Risk (100)) */}
                     <td className="py-3.5 px-4 text-center">
-                      <div className="flex flex-col sm:flex-row items-center justify-center gap-1.5">
-                        <RiskBadge
-                          level={w.fraudRiskTier || w.riskLevel}
-                          score={w.fraudRiskScore ?? w.riskScore}
-                          confidence={w.dataConfidence}
-                          type={w.inefficiencyScore !== undefined ? "Fraud" : null}
-                          size="sm"
-                        />
-                        {w.inefficiencyScore !== undefined && (
-                          <RiskBadge
-                            level={w.inefficiencyTier || 'Low'}
-                            score={w.inefficiencyScore}
-                            type="Delay"
-                            size="sm"
-                          />
-                        )}
-                      </div>
+                      <RiskBadge
+                        level={w.fraudRiskTier || w.riskLevel || 'Medium'}
+                        score={w.fraudRiskScore || w.riskScore}
+                        size="sm"
+                      />
                     </td>
 
-                    {/* Flag Reason */}
+                    {/* 6. Flag Reason */}
                     <td className="py-3.5 px-4 font-medium text-slate-700 max-w-xs">
                       <p className="line-clamp-2" title={w.flagReason}>
                         {w.flagReason}
                       </p>
                     </td>
 
-                    {/* Sanctioned Amount */}
+                    {/* 7. Sanctioned Amount */}
                     <td className="py-3.5 px-4 text-right font-mono font-bold text-[#0F1419]">
-                      ₹{w.sanctionedAmount?.toFixed(2)}L
+                      ₹{(w.sanctionedAmount ?? 0).toFixed(2)}L
                     </td>
 
-                    {/* Status */}
+                    {/* 8. Status */}
                     <td className="py-3.5 px-4">
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                        w.status === 'Completed'
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : w.status === 'Delayed'
-                          ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                          : w.status === 'Under Review'
-                          ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                          : 'bg-slate-100 text-slate-700 border border-slate-200'
-                      }`}>
+                      <span
+                        className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                          w.status === 'Completed'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : w.status === 'Delayed'
+                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                            : w.status === 'Under Review'
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                            : 'bg-slate-100 text-slate-700 border border-slate-200'
+                        }`}
+                      >
                         {w.status}
                       </span>
                     </td>
@@ -363,19 +537,19 @@ export default function FlaggedCasesPage() {
           <div>
             Showing{' '}
             <span className="font-bold text-[#0F1419]">
-              {sortedWorks.length > 0 ? (currentPage - 1) * pageSize + 1 : 0}
+              {totalCount > 0 ? (currentPage - 1) * pageSize + 1 : 0}
             </span>{' '}
             to{' '}
             <span className="font-bold text-[#0F1419]">
-              {Math.min(currentPage * pageSize, sortedWorks.length)}
+              {Math.min(currentPage * pageSize, totalCount)}
             </span>{' '}
-            of <span className="font-bold text-[#0F1419]">{sortedWorks.length}</span> flagged cases
+            of <span className="font-bold text-[#0F1419]">{totalCount}</span> flagged cases
           </div>
 
           <div className="flex items-center gap-1.5">
             <button
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
               className="p-1.5 rounded-lg border border-[#EFF3F4] bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               title="Previous page"
             >
@@ -385,8 +559,8 @@ export default function FlaggedCasesPage() {
               Page {currentPage} of {totalPages}
             </span>
             <button
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
               className="p-1.5 rounded-lg border border-[#EFF3F4] bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               title="Next page"
             >
@@ -395,7 +569,6 @@ export default function FlaggedCasesPage() {
           </div>
         </div>
       </div>
-
     </div>
   );
 }

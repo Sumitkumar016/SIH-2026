@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
+  ChevronLeft,
   ChevronRight,
   ArrowUpDown,
   Search,
@@ -33,28 +34,48 @@ export default function AuditorCaseQueuePage() {
     caseStatus: 'All',
     source: 'All',
   });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const pageSize = 15;
   const navigate = useNavigate();
 
-  const loadQueue = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const res = await auditorApi.getCaseQueue({
-        search: searchQuery,
-        ...filters,
-      });
-      setCases(res.data || []);
-    } catch (err) {
-      console.error('Failed to load auditor case queue:', err);
-      setError(err?.message || 'Failed to retrieve investigation cases.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Reset to page 1 on filter or search change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filters]);
 
   useEffect(() => {
+    let active = true;
+    const loadQueue = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const res = await auditorApi.getCaseQueue({
+          search: searchQuery,
+          ...filters,
+          page: currentPage,
+          limit: pageSize,
+        });
+        if (!active) return;
+        const incoming = res.data || [];
+        setCases(incoming);
+        setTotalCount(res.pagination?.total ?? res.total ?? incoming.length);
+        setTotalPages(res.pagination?.totalPages ?? Math.max(1, Math.ceil((res.total || incoming.length) / pageSize)));
+      } catch (err) {
+        if (!active) return;
+        console.error('Failed to load auditor case queue:', err);
+        setError(err?.message || 'Failed to retrieve investigation cases.');
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
     loadQueue();
-  }, [searchQuery, filters]);
+    return () => {
+      active = false;
+    };
+  }, [searchQuery, filters, currentPage]);
 
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -87,7 +108,7 @@ export default function AuditorCaseQueuePage() {
         <div className="flex items-center gap-3 bg-white border border-[#EFF3F4] px-3.5 py-2 rounded-xl text-xs font-mono shadow-xs self-start md:self-auto">
           <div>
             <span className="text-slate-400 block text-[10px] uppercase font-bold">Investigation Backlog</span>
-            <span className="text-base font-extrabold text-rose-600">{cases.length} Open Cases</span>
+            <span className="text-base font-extrabold text-rose-600">{totalCount} Open Cases</span>
           </div>
         </div>
       </div>
@@ -214,7 +235,7 @@ export default function AuditorCaseQueuePage() {
                   return (
                     <tr
                       key={c.workId}
-                      onClick={() => navigate(`/auditor/case/${c.workId}`)}
+                      onClick={() => navigate(`/auditor/case/${encodeURIComponent(c.workId)}`)}
                       className="hover:bg-[#F7F9F9] cursor-pointer transition-colors group"
                     >
                       {/* Work ID */}
@@ -294,14 +315,41 @@ export default function AuditorCaseQueuePage() {
           </table>
         </div>
 
-        {/* Footer */}
-        <div className="p-3.5 bg-[#F7F9F9] border-t border-[#EFF3F4] flex items-center justify-between text-xs text-slate-500">
-          <span>
-            Click any row to open the full AI Investigation & Action Center.
-          </span>
-          <span className="font-mono font-semibold text-slate-700">
-            Showing {cases.length} priority investigation cases
-          </span>
+        {/* Footer with True Server-Side Pagination */}
+        <div className="p-3.5 bg-[#F7F9F9] border-t border-[#EFF3F4] flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+          <div>
+            Showing{' '}
+            <span className="font-bold text-[#0F1419]">
+              {totalCount > 0 ? (currentPage - 1) * pageSize + 1 : 0}
+            </span>{' '}
+            to{' '}
+            <span className="font-bold text-[#0F1419]">
+              {Math.min(currentPage * pageSize, totalCount)}
+            </span>{' '}
+            of <span className="font-bold text-[#0F1419]">{totalCount}</span> priority investigation cases
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+              className="p-1.5 rounded-lg border border-[#EFF3F4] bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              title="Previous page"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="px-2 font-mono font-medium">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              className="p-1.5 rounded-lg border border-[#EFF3F4] bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              title="Next page"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 

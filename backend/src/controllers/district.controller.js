@@ -45,9 +45,17 @@ export const getVerificationQueue = asyncHandler(async (req, res) => {
     });
   }
 
-  const result = await getVerificationQueueService(districtId);
+  const result = await getVerificationQueueService(districtId, req.query);
   return res.status(200).json(result);
 });
+
+function extractWorkId(param) {
+  let val = param;
+  if (Array.isArray(val)) {
+    val = val.join("/");
+  }
+  return val ? decodeURIComponent(val) : "";
+}
 
 /**
  * 2) POST /api/district/verification/:workId/verify
@@ -63,7 +71,7 @@ export const markWorkVerified = asyncHandler(async (req, res) => {
     });
   }
 
-  const { workId } = req.params;
+  const workId = extractWorkId(req.params.workId || req.body?.workId);
   const result = await markWorkVerifiedService(districtId, workId, req.user);
   return res.status(200).json(result);
 });
@@ -82,7 +90,7 @@ export const requestEvidence = asyncHandler(async (req, res) => {
     });
   }
 
-  const { workId } = req.params;
+  const workId = extractWorkId(req.params.workId || req.body?.workId);
   const { note } = req.body || {};
   const result = await requestEvidenceService(districtId, workId, note);
   return res.status(200).json(result);
@@ -109,7 +117,7 @@ export const escalateWork = asyncHandler(async (req, res) => {
     });
   }
 
-  const { workId } = req.params;
+  const workId = extractWorkId(req.params.workId || req.body?.workId);
   const result = await escalateWorkService(districtId, workId, parsed.data.note, req.user);
   return res.status(200).json(result);
 });

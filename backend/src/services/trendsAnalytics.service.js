@@ -22,16 +22,30 @@ function worksMostlyInOneState(stateCount, worksAwarded) {
 /**
  * 1. getMonthlyTrends
  * Last 12 months, oldest first, bucketed by RiskScore.calculated_at.
+ * Scoped optionally to stateId and districtId.
  * - totalFlagged = count of RiskScore rows with riskLevel IN ('Medium','High')
  * - costOverrun = flagged rows where cost_overrun_pct > 0
  * - delayStall = flagged works where getDisplayStatus(work) === 'Delayed'
  *
+ * @param {Object} [filters]
+ * @param {number} [filters.stateId]
+ * @param {number} [filters.districtId]
  * @returns {Promise<Array<{ month: string, totalFlagged: number, costOverrun: number, delayStall: number }>>}
  */
-export async function getMonthlyTrends() {
+export async function getMonthlyTrends({ stateId, districtId } = {}) {
   // Find the most recent risk calculation date to use as reference
   const latestRow = await prisma.riskScore.findFirst({
-    where: { risk_level: { in: ["Medium", "High"] } },
+    where: {
+      risk_level: { in: ["Medium", "High"] },
+      ...(stateId || districtId
+        ? {
+            work: {
+              ...(stateId ? { state_id: stateId } : {}),
+              ...(districtId ? { district_id: districtId } : {}),
+            },
+          }
+        : {}),
+    },
     orderBy: { calculated_at: "desc" },
     select: { calculated_at: true },
   });
@@ -72,6 +86,14 @@ export async function getMonthlyTrends() {
         gte: startDate,
         lte: endDate,
       },
+      ...(stateId || districtId
+        ? {
+            work: {
+              ...(stateId ? { state_id: stateId } : {}),
+              ...(districtId ? { district_id: districtId } : {}),
+            },
+          }
+        : {}),
     },
     select: {
       calculated_at: true,
@@ -124,10 +146,14 @@ export async function getMonthlyTrends() {
 /**
  * 2. getCategoryAnomalies
  * Top 6 work categories with Medium or High risk scores, sorted by count descending.
+ * Scoped optionally to stateId and districtId.
  *
+ * @param {Object} [filters]
+ * @param {number} [filters.stateId]
+ * @param {number} [filters.districtId]
  * @returns {Promise<Array<{ category: string, count: number }>>}
  */
-export async function getCategoryAnomalies() {
+export async function getCategoryAnomalies({ stateId, districtId } = {}) {
   const groups = await prisma.work.groupBy({
     by: ["category"],
     where: {
@@ -135,6 +161,8 @@ export async function getCategoryAnomalies() {
       current_risk_score: {
         risk_level: { in: ["Medium", "High"] },
       },
+      ...(stateId ? { state_id: stateId } : {}),
+      ...(districtId ? { district_id: districtId } : {}),
     },
     _count: {
       work_id: true,
@@ -144,8 +172,8 @@ export async function getCategoryAnomalies() {
   const formatted = groups
     .filter((g) => g.category)
     .map((g) => ({
-        category: g.category,
-        count: g._count.work_id,
+      category: g.category,
+      count: g._count.work_id,
     }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 6);
@@ -156,7 +184,11 @@ export async function getCategoryAnomalies() {
 /**
  * 3. getTopVendors
  * Groups expenditures by vendor, evaluates concentration risk, and returns top 5.
+ * Scoped optionally to stateId and districtId by evaluating only in-scope expenditures.
  *
+ * @param {Object} [filters]
+ * @param {number} [filters.stateId]
+ * @param {number} [filters.districtId]
  * @returns {Promise<Array<{
  *   vendor: string,
  *   stateConcentration: string,
@@ -167,7 +199,7 @@ export async function getCategoryAnomalies() {
  *   flaggedCount: number
  * }>>}
  */
-export async function getTopVendors() {
+export async function getTopVendors({ stateId, districtId } = {}) {
   const vendors = await prisma.vendor.findMany({
     where: {
       expenditures: {
@@ -183,6 +215,8 @@ export async function getTopVendors() {
           work: {
             select: {
               work_id: true,
+              state_id: true,
+              district_id: true,
               state: {
                 select: {
                   state_name: true,
@@ -208,22 +242,30 @@ export async function getTopVendors() {
     const stateSet = new Set();
 
     for (const exp of v.expenditures) {
+      if (!exp.work) continue;
+
+      // Skip individual expenditures falling outside selected state/district scope
+      if (stateId && exp.work.state_id !== stateId) {
+        continue;
+      }
+      if (districtId && exp.work.district_id !== districtId) {
+        continue;
+      }
+
       totalExpenditureAmount += Number(exp.amount || 0);
 
-      if (exp.work) {
-        const wId = exp.work.work_id;
-        if (!workMap.has(wId)) {
-          const stateName = exp.work.state?.state_name;
-          if (stateName) {
-            stateSet.add(stateName);
-          }
-          const riskLevel = exp.work.current_risk_score?.risk_level;
-          const isFlagged = riskLevel === "Medium" || riskLevel === "High";
-          workMap.set(wId, {
-            stateName,
-            isFlagged,
-          });
+      const wId = exp.work.work_id;
+      if (!workMap.has(wId)) {
+        const stateName = exp.work.state?.state_name;
+        if (stateName) {
+          stateSet.add(stateName);
         }
+        const riskLevel = exp.work.current_risk_score?.risk_level;
+        const isFlagged = riskLevel === "Medium" || riskLevel === "High";
+        workMap.set(wId, {
+          stateName,
+          isFlagged,
+        });
       }
     }
 
@@ -270,10 +312,71 @@ export async function getTopVendors() {
 /**
  * 4. getStateComparison
  * Top 10 states by total work count; completion rate and flagged percentage (0-100, 1dp).
+ * Special filtering behavior:
+ * - If districtId is supplied, returns [] (state-level comparison not applicable at district level).
+ * - If stateId is supplied, returns only that one state's numbers.
+ * - If neither supplied, returns top 10 states by total work count.
  *
+ * @param {Object} [filters]
+ * @param {number} [filters.stateId]
+ * @param {number} [filters.districtId]
  * @returns {Promise<Array<{ state: string, completionRate: number, flaggedPercent: number }>>}
  */
-export async function getStateComparison() {
+export async function getStateComparison({ stateId, districtId } = {}) {
+  // District filter active: state comparison not applicable
+  if (districtId) {
+    return [];
+  }
+
+  // Single state filter active: return only that one state's numbers
+  if (stateId) {
+    const stateRecord = await prisma.state.findUnique({
+      where: { state_id: stateId },
+      select: { state_id: true, state_name: true },
+    });
+
+    if (!stateRecord) return [];
+
+    const [totalWorks, completedWorks, flaggedWorks] = await Promise.all([
+      prisma.work.count({
+        where: { state_id: stateId },
+      }),
+      prisma.work.count({
+        where: {
+          state_id: stateId,
+          status: "Completed",
+        },
+      }),
+      prisma.work.count({
+        where: {
+          state_id: stateId,
+          current_risk_score: {
+            risk_level: { in: ["Medium", "High"] },
+          },
+        },
+      }),
+    ]);
+
+    const completionRate =
+      totalWorks > 0
+        ? Number(((completedWorks / totalWorks) * 100).toFixed(1))
+        : 0;
+
+    const flaggedPercent =
+      totalWorks > 0
+        ? Number(((flaggedWorks / totalWorks) * 100).toFixed(1))
+        : 0;
+
+    return [
+      {
+        state: stateRecord.state_name,
+        completionRate,
+        flaggedPercent,
+      },
+    ];
+  }
+
+  // National view: top 10 states by total work count
   const stateWorkCounts = await prisma.work.groupBy({
     by: ["state_id"],
     _count: {
@@ -352,12 +455,38 @@ export async function getStateComparison() {
       completionRate,
       flaggedPercent,
     };
-    });
-  }
+  });
+}
+
+/**
+ * 5. getTrendsLocations
+ * Returns all states with their associated districts for dynamic filtering dropdowns.
+ *
+ * @returns {Promise<Array<{ state_id: number, state_name: string, districts: Array<{ district_id: number, district_name: string }> }>>}
+ */
+export async function getTrendsLocations() {
+  const states = await prisma.state.findMany({
+    orderBy: { state_name: "asc" },
+    select: {
+      state_id: true,
+      state_name: true,
+      districts: {
+        orderBy: { district_name: "asc" },
+        select: {
+          district_id: true,
+          district_name: true,
+        },
+      },
+    },
+  });
+
+  return states;
+}
 
 export default {
   getMonthlyTrends,
   getCategoryAnomalies,
   getTopVendors,
   getStateComparison,
+  getTrendsLocations,
 };

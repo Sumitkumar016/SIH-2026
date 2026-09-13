@@ -78,6 +78,7 @@ export async function getDistrictOverview(districtId) {
       totalCompletedCount += 1;
     }
     if (
+      w.status !== "Recommended" &&
       w.current_risk_score &&
       (w.current_risk_score.risk_level === "Medium" || w.current_risk_score.risk_level === "High")
     ) {
@@ -85,8 +86,8 @@ export async function getDistrictOverview(districtId) {
     }
   }
 
-  // Convert sanctioned amount from Lakhs to Crores (1 Crore = 100 Lakhs)
-  const totalSanctionedCr = Number((totalSanctionedAmount / 100).toFixed(2));
+  // Convert sanctioned amount from Rupees to Crores (/ 10,000,000)
+  const totalSanctionedCr = Number((totalSanctionedAmount / 10000000).toFixed(2));
 
   const completionRate =
     totalSanctionedCount > 0
@@ -134,6 +135,7 @@ export async function getDistrictOverview(districtId) {
     for (const w of mpWorks) {
       if (w.status === "Completed") completed += 1;
       if (
+        w.status !== "Recommended" &&
         w.current_risk_score &&
         (w.current_risk_score.risk_level === "Medium" || w.current_risk_score.risk_level === "High")
       ) {
@@ -144,7 +146,8 @@ export async function getDistrictOverview(districtId) {
 
     const compRate =
       count > 0 ? Number(((completed / count) * 100).toFixed(1)) : 0;
-    const mpSanctionedCr = Number((mpSanctionedAmount / 100).toFixed(2));
+    // Convert from Rupees to Crores (/ 10,000,000)
+    const mpSanctionedCr = Number((mpSanctionedAmount / 10000000).toFixed(2));
 
     const worksList = [];
     for (const w of mpWorks) {
@@ -153,6 +156,21 @@ export async function getDistrictOverview(districtId) {
         numericRiskScore = Number(w.current_risk_score.risk_score);
       }
 
+      const rawAmt =
+        w.sanctioned_amount !== null && w.sanctioned_amount !== undefined
+          ? w.sanctioned_amount
+          : w.recommended_amount;
+      const isEstimated =
+        (w.sanctioned_amount === null || w.sanctioned_amount === undefined) &&
+        w.recommended_amount !== null &&
+        w.recommended_amount !== undefined;
+
+      // Stored in Rupees; convert to Lakhs (/ 100,000)
+      const sanctionedAmountLakhs =
+        rawAmt !== null && rawAmt !== undefined && Number(rawAmt) > 0
+          ? Number((Number(rawAmt) / 100000).toFixed(2))
+          : 0;
+
       worksList.push({
         workId: w.work_id,
         category: w.category || "",
@@ -160,7 +178,8 @@ export async function getDistrictOverview(districtId) {
         riskScore: numericRiskScore,
         description: w.description || "",
         flagReason: w.current_risk_score?.flag_reason || null,
-        sanctionedAmount: Number(Number(w.sanctioned_amount || 0).toFixed(2)),
+        sanctionedAmount: sanctionedAmountLakhs,
+        isEstimated,
         status: getDisplayStatus(w),
       });
     }

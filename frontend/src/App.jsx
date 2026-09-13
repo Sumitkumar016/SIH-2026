@@ -125,7 +125,7 @@ export default function App() {
             <Route path="/auditor" element={<AuditorDashboardLayout />}>
               <Route index element={<Navigate to="/auditor/queue" replace />} />
               <Route path="queue" element={<AuditorCaseQueuePage />} />
-              <Route path="case/:workId" element={<AuditorCaseDetailPage />} />
+              <Route path="case/*" element={<AuditorCaseDetailPage />} />
               <Route path="cases/*" element={<WorkDetailPage />} />
               <Route path="vendor" element={<AuditorVendorToolPage />} />
             </Route>

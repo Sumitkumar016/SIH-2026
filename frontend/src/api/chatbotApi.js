@@ -1,10 +1,10 @@
 /**
- * Chatbot API Service (src/api/chatbotApi.js)
- * Frontend-only mock intelligence engine for the MPLADS platform.
+ * Assistant AI Service (src/api/chatbotApi.js)
+ * Assistant intelligence engine for the MPLADS platform.
  * 
  * SWAPPABILITY NOTE:
  * When connecting a real LLM / AI backend (e.g. POST /api/chatbot/query),
- * simply replace the mock logic inside `getMockResponse` with:
+ * simply replace the response logic inside `getAssistantResponse` with:
  * 
  * const data = await apiFetch('/api/chatbot/query', {
  *   method: 'POST',
@@ -42,7 +42,7 @@ export function getRoleInitialGreeting(role) {
  * @param {string} role - Active user role from AuthContext
  * @returns {Promise<string>}
  */
-export async function getMockResponse(userMessage, role = 'ministry') {
+export async function getAssistantResponse(userMessage, role = 'ministry') {
   return new Promise((resolve) => {
     // Simulate thinking latency (800ms - 1300ms)
     const delay = Math.floor(Math.random() * 500) + 800;
@@ -147,4 +147,4 @@ export async function getMockResponse(userMessage, role = 'ministry') {
   });
 }
 
-export default { getRoleInitialGreeting, getMockResponse };
+export default { getRoleInitialGreeting, getAssistantResponse };

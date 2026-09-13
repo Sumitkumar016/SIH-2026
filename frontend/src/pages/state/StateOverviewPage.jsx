@@ -100,12 +100,7 @@ export default function StateOverviewPage() {
     }
   };
 
-  const state = data?.state || {
-    stateName: 'Bihar',
-    nodalDepartment: 'Department of Planning & Development',
-    headquarters: 'Patna',
-    totalDistricts: 38,
-  };
+  const state = data?.state || {};
   const kpis = data?.kpis;
 
   const handleSort = (field) => {

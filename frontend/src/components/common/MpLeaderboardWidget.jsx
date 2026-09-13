@@ -30,12 +30,24 @@ import {
  * - Excludes risk scores and anomaly counts to maintain fairness to MPs
  * - Uses neutral Twitter-blue branding (NO red/amber/green risk colors)
  */
-import { TableSkeleton } from './loading';
+import { TableSkeleton, ErrorState } from './loading';
 
-export default function MpLeaderboardWidget({ leaderboardData }) {
+export default function MpLeaderboardWidget({ leaderboardData, error, onRetry }) {
   const [activeTab, setActiveTab] = useState('top5'); // 'top5' or 'bottom5'
   const [expandedMpName, setExpandedMpName] = useState(null);
   const [selectedMpForModal, setSelectedMpForModal] = useState(null);
+
+  if (error && !leaderboardData) {
+    return (
+      <div className="bg-white border border-[#EFF3F4] rounded-2xl p-5 shadow-subtle">
+        <ErrorState
+          title="MP Leaderboard Unavailable"
+          message={error?.message || 'Failed to load MP performance data.'}
+          onRetry={onRetry}
+        />
+      </div>
+    );
+  }
 
   if (!leaderboardData) {
     return (
@@ -248,7 +260,7 @@ export default function MpLeaderboardWidget({ leaderboardData }) {
 
                       {/* Total Works Completed */}
                       <td className="py-3 px-3 text-center font-mono font-bold text-slate-700">
-                        {mp.completedWorks}
+                        {mp.completedWorks ?? 0}
                       </td>
 
                       {/* Completion Rate % (Secondary Supporting Metric) */}
@@ -319,7 +331,7 @@ export default function MpLeaderboardWidget({ leaderboardData }) {
                                   {completionDisplay}
                                 </span>
                                 <span className="text-[10px] text-slate-400 block mt-0.5">
-                                  {mp.completedWorks} of {mp.totalWorks} completed
+                                  {mp.completedWorks ?? 0} of {mp.totalWorks ?? 0} completed
                                 </span>
                               </div>
 
@@ -328,10 +340,10 @@ export default function MpLeaderboardWidget({ leaderboardData }) {
                                   Active Pipeline
                                 </span>
                                 <span className="text-base font-extrabold font-mono text-slate-800">
-                                  {mp.ongoingWorks + mp.underReviewWorks} works
+                                  {(mp.ongoingWorks ?? 0) + (mp.underReviewWorks ?? 0)} works
                                 </span>
                                 <span className="text-[10px] text-slate-400 block mt-0.5">
-                                  {mp.ongoingWorks} ongoing, {mp.underReviewWorks} review
+                                  {mp.ongoingWorks ?? 0} ongoing, {mp.underReviewWorks ?? 0} review
                                 </span>
                               </div>
 
@@ -340,10 +352,12 @@ export default function MpLeaderboardWidget({ leaderboardData }) {
                                   Sector Focus
                                 </span>
                                 <span className="text-xs font-bold text-slate-700 block truncate">
-                                  {Object.keys(mp.categories).length} Categories
+                                  {Object.keys(mp.categories || {}).length} Categories
                                 </span>
                                 <span className="text-[10px] text-slate-400 block mt-0.5 truncate">
-                                  {Object.keys(mp.categories).slice(0, 2).join(', ')}
+                                  {Object.keys(mp.categories || {}).length > 0
+                                    ? Object.keys(mp.categories).slice(0, 2).join(', ')
+                                    : 'General development'}
                                 </span>
                               </div>
                             </div>
@@ -443,8 +457,8 @@ export default function MpLeaderboardWidget({ leaderboardData }) {
                   />
                 </div>
                 <div className="flex justify-between text-[10px] text-slate-400 mt-1 font-mono">
-                  <span>{selectedMpForModal.completedWorks} completed</span>
-                  <span>{selectedMpForModal.totalWorks} recommended</span>
+                  <span>{selectedMpForModal.completedWorks ?? 0} completed</span>
+                  <span>{selectedMpForModal.totalWorks ?? 0} recommended</span>
                 </div>
               </div>
             </div>
@@ -456,14 +470,20 @@ export default function MpLeaderboardWidget({ leaderboardData }) {
                 <span>Recommended Work Sectors</span>
               </h4>
               <div className="flex flex-wrap gap-1.5">
-                {Object.entries(selectedMpForModal.categories).map(([cat, count]) => (
-                  <span
-                    key={cat}
-                    className="text-xs px-2.5 py-1 rounded-lg bg-slate-50 text-slate-700 border border-[#EFF3F4] font-medium"
-                  >
-                    {cat} <span className="font-mono text-slate-400 font-bold">({count})</span>
+                {Object.entries(selectedMpForModal.categories || {}).length > 0 ? (
+                  Object.entries(selectedMpForModal.categories).map(([cat, count]) => (
+                    <span
+                      key={cat}
+                      className="text-xs px-2.5 py-1 rounded-lg bg-slate-50 text-slate-700 border border-[#EFF3F4] font-medium"
+                    >
+                      {cat} <span className="font-mono text-slate-400 font-bold">({count})</span>
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-xs text-slate-400 italic">
+                    No categorized sector works recorded for this constituency.
                   </span>
-                ))}
+                )}
               </div>
             </div>
 

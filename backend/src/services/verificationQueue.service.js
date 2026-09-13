@@ -15,7 +15,7 @@ export const reminderStore = new Map();
  * @param {number|string} districtId - District Primary Key (from req.user.district_id)
  * @returns {Promise<{ data: Array }>}
  */
-export async function getVerificationQueue(districtId) {
+export async function getVerificationQueue(districtId, query = {}) {
   const parsedDistrictId = parseInt(districtId, 10);
   if (isNaN(parsedDistrictId)) {
     const error = new Error("Invalid District ID");
@@ -23,67 +23,90 @@ export async function getVerificationQueue(districtId) {
     throw error;
   }
 
-  // 1. Fetch completed works situated in this district
-  const completedWorks = await prisma.work.findMany({
-    where: {
-      district_id: parsedDistrictId,
-      status: "Completed",
+  const { search, page = 1, limit = 15 } = query;
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10) || 15));
+  const skip = (pageNum - 1) * limitNum;
+  const take = limitNum;
+
+  const where = {
+    district_id: parsedDistrictId,
+    status: "Completed",
+    work_progress: {
+      none: {
+        evidence_status: "present",
+      },
     },
-    include: {
-      mp: {
-        select: {
-          mp_id: true,
-          mp_name: true,
-        },
-      },
-      current_risk_score: true,
-      expenditures: {
-        include: {
-          vendor: {
-            select: {
-              vendor_name: true,
-            },
-          },
-        },
-        orderBy: {
-          amount: "desc",
-        },
-      },
-      work_progress: {
-        orderBy: [
-          { report_date: "desc" },
-          { progress_id: "desc" },
+  };
+
+  if (search && search.trim() !== "" && search !== "All") {
+    const q = search.trim();
+    where.AND = [
+      {
+        OR: [
+          { work_id: { contains: q, mode: "insensitive" } },
+          { description: { contains: q, mode: "insensitive" } },
+          { category: { contains: q, mode: "insensitive" } },
+          { mp: { mp_name: { contains: q, mode: "insensitive" } } },
         ],
       },
-      escalations: {
-        orderBy: {
-          escalation_id: "desc",
-        },
-      },
-      asset_creation: {
-        orderBy: {
-          asset_id: "desc",
-        },
-      },
-    },
-  });
-
-  // 2. Filter: only works where the most recent progress report lacks present photo evidence
-  const missingEvidenceWorks = [];
-
-  for (const work of completedWorks) {
-    const latestProgress = work.work_progress?.[0];
-    const isMissingEvidence = !latestProgress || latestProgress.evidence_status !== "present";
-
-    if (isMissingEvidence) {
-      missingEvidenceWorks.push(work);
-    }
+    ];
   }
+
+  // 1. Fetch total count and page of completed works missing evidence in this district
+  const [total, works] = await prisma.$transaction([
+    prisma.work.count({ where }),
+    prisma.work.findMany({
+      where,
+      skip,
+      take,
+      orderBy: {
+        completion_date: "desc",
+      },
+      include: {
+        mp: {
+          select: {
+            mp_id: true,
+            mp_name: true,
+          },
+        },
+        current_risk_score: true,
+        expenditures: {
+          include: {
+            vendor: {
+              select: {
+                vendor_name: true,
+              },
+            },
+          },
+          orderBy: {
+            amount: "desc",
+          },
+        },
+        work_progress: {
+          orderBy: [
+            { report_date: "desc" },
+            { progress_id: "desc" },
+          ],
+        },
+        escalations: {
+          orderBy: {
+            escalation_id: "desc",
+          },
+        },
+        asset_creation: {
+          orderBy: {
+            asset_id: "desc",
+          },
+        },
+      },
+    }),
+  ]);
 
   const now = Date.now();
   const data = [];
 
-  for (const w of missingEvidenceWorks) {
+  for (const w of works) {
     const mpName = w.mp?.mp_name || "Unknown MP";
 
     // Extract vendor name from largest expenditure row
@@ -136,7 +159,20 @@ export async function getVerificationQueue(districtId) {
     });
   }
 
-  return { data };
+  const totalPages = Math.ceil(total / limitNum) || 1;
+
+  return {
+    data,
+    total,
+    pagination: {
+      page: pageNum,
+      limit: limitNum,
+      total,
+      totalPages,
+      hasNextPage: pageNum < totalPages,
+      hasPreviousPage: pageNum > 1,
+    },
+  };
 }
 
 /**

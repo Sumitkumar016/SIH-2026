@@ -97,16 +97,19 @@ export async function getConstituencyOverview(mpId) {
 
   const totalRecommendedCount = mp.works.length;
   let totalSanctionedCount = 0;
-  let totalSanctionedLakhs = 0;
+  let totalSanctionedRupees = 0;
   let totalCompletedCount = 0;
-  let totalExpenditureLakhs = 0;
+  let totalExpenditureRupees = 0;
 
   for (const w of mp.works) {
-    const sanctionedAmount = Number(w.sanctioned_amount || 0);
+    const rawAmt =
+      w.sanctioned_amount !== null && w.sanctioned_amount !== undefined
+        ? w.sanctioned_amount
+        : w.recommended_amount;
 
     if (w.status !== "Recommended") {
       totalSanctionedCount += 1;
-      totalSanctionedLakhs += sanctionedAmount;
+      totalSanctionedRupees += Number(rawAmt || 0);
     }
 
     if (w.status === "Completed") {
@@ -114,13 +117,15 @@ export async function getConstituencyOverview(mpId) {
     }
 
     for (const exp of w.expenditures || []) {
-      totalExpenditureLakhs += Number(exp.amount || 0);
+      totalExpenditureRupees += Number(exp.amount || 0);
     }
   }
 
-  totalSanctionedLakhs = Number(totalSanctionedLakhs.toFixed(1));
-  totalExpenditureLakhs = Number(totalExpenditureLakhs.toFixed(1));
-  const totalExpenditureCr = Number((totalExpenditureLakhs / 100).toFixed(2));
+  // Stored in Rupees; convert to Lakhs (/ 100,000) and Crores (/ 10,000,000)
+  const totalSanctionedLakhs = Number((totalSanctionedRupees / 100000).toFixed(2));
+  const totalSanctionedCr = Number((totalSanctionedRupees / 10000000).toFixed(2));
+  const totalExpenditureLakhs = Number((totalExpenditureRupees / 100000).toFixed(2));
+  const totalExpenditureCr = Number((totalExpenditureRupees / 10000000).toFixed(2));
 
   const utilizationRatePercent =
     annualEntitlementLakhs > 0
@@ -133,24 +138,30 @@ export async function getConstituencyOverview(mpId) {
     totalRecommendedCount,
     totalSanctionedCount,
     totalSanctionedLakhs,
+    totalSanctionedCr,
     totalCompletedCount,
     totalExpenditureCr,
     totalExpenditureLakhs,
     utilizationRatePercent,
   };
 
-  // Flagged works: every Work belonging to this MP where RiskScore.riskLevel IN ('Medium','High')
+  // Flagged works: sanctioned works belonging to this MP where RiskScore.riskLevel IN ('Medium','High')
   const flaggedRaw = mp.works.filter(
     (w) =>
+      w.status !== "Recommended" &&
       w.current_risk_score &&
       (w.current_risk_score.risk_level === "Medium" || w.current_risk_score.risk_level === "High")
   );
 
-  // Order flagged works by calculated_at descending
+  // Deterministic order: risk_score desc, calculated_at desc, work_id desc
   flaggedRaw.sort((a, b) => {
-    const dateA = new Date(a.current_risk_score.calculated_at || 0).getTime();
-    const dateB = new Date(b.current_risk_score.calculated_at || 0).getTime();
-    return dateB - dateA;
+    const scoreA = Number(a.current_risk_score?.risk_score || 0);
+    const scoreB = Number(b.current_risk_score?.risk_score || 0);
+    if (scoreB !== scoreA) return scoreB - scoreA;
+    const dateA = new Date(a.current_risk_score?.calculated_at || 0).getTime();
+    const dateB = new Date(b.current_risk_score?.calculated_at || 0).getTime();
+    if (dateB !== dateA) return dateB - dateA;
+    return b.work_id.localeCompare(a.work_id);
   });
 
   const flaggedWorks = [];
@@ -163,6 +174,20 @@ export async function getConstituencyOverview(mpId) {
       numericRiskScore = Number(work.current_risk_score.risk_score);
     }
 
+    const rawAmt =
+      work.sanctioned_amount !== null && work.sanctioned_amount !== undefined
+        ? work.sanctioned_amount
+        : work.recommended_amount;
+    const isEstimated =
+      (work.sanctioned_amount === null || work.sanctioned_amount === undefined) &&
+      work.recommended_amount !== null &&
+      work.recommended_amount !== undefined;
+
+    const sanctionedAmountLakhs =
+      rawAmt !== null && rawAmt !== undefined && Number(rawAmt) > 0
+        ? Number((Number(rawAmt) / 100000).toFixed(2))
+        : 0;
+
     flaggedWorks.push({
       workId: work.work_id,
       category: work.category || "",
@@ -170,7 +195,8 @@ export async function getConstituencyOverview(mpId) {
       flagReason: work.current_risk_score.flag_reason || "",
       riskLevel: work.current_risk_score.risk_level || "Medium",
       riskScore: numericRiskScore,
-      sanctionedAmount: Number(Number(work.sanctioned_amount || 0).toFixed(2)),
+      sanctionedAmount: sanctionedAmountLakhs,
+      isEstimated,
       vendorName,
     });
   }

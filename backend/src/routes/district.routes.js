@@ -30,6 +30,7 @@ router.get("/verification", protect, restrictTo("district"), getVerificationQueu
  * Mark Verified:
  * Confirms ground photo evidence and sets physical progress to 100%.
  */
+router.post("/verification/{*workId}/verify", protect, restrictTo("district"), markWorkVerified);
 router.post("/verification/:workId/verify", protect, restrictTo("district"), markWorkVerified);
 
 /**
@@ -37,6 +38,7 @@ router.post("/verification/:workId/verify", protect, restrictTo("district"), mar
  * Request Evidence:
  * Sends an evidence reminder notice to the contractor and implementing agency.
  */
+router.post("/verification/{*workId}/request-evidence", protect, restrictTo("district"), requestEvidence);
 router.post("/verification/:workId/request-evidence", protect, restrictTo("district"), requestEvidence);
 
 /**
@@ -44,6 +46,7 @@ router.post("/verification/:workId/request-evidence", protect, restrictTo("distr
  * Escalate Work:
  * Creates an escalation record to transfer a suspicious work to the Auditor investigation queue.
  */
+router.post("/verification/{*workId}/escalate", protect, restrictTo("district"), escalateWork);
 router.post("/verification/:workId/escalate", protect, restrictTo("district"), escalateWork);
 
 export default router;

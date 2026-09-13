@@ -43,7 +43,7 @@ export default function DistrictSummaryModal({
                 {district} District Summary
               </h3>
               <p className="text-xs text-slate-500">
-                State Nodal Oversight • Bihar
+                {districtSummary.stateName ? `State Nodal Oversight • ${districtSummary.stateName}` : 'State Nodal Oversight'}
               </p>
             </div>
           </div>

@@ -25,7 +25,7 @@ export async function getVendorProfile(searchName) {
 
   // 1. Find matching vendors (case-insensitive partial search)
   let matchingVendors = [];
-  if (query && query !== "M/s Apex Infra Projects") {
+  if (query) {
     matchingVendors = await prisma.vendor.findMany({
       where: {
         vendor_name: {
@@ -39,8 +39,8 @@ export async function getVendorProfile(searchName) {
     });
   }
 
-  // If no match found and query was empty or legacy mock sample, select the top vendor by expenditure count
-  if ((!matchingVendors || matchingVendors.length === 0) && (!query || query === "M/s Apex Infra Projects")) {
+  // If no match found or query was empty, select the top vendor by expenditure count from database
+  if (!matchingVendors || matchingVendors.length === 0) {
     const defaultVendor = await prisma.vendor.findFirst({
       orderBy: {
         expenditures: {
@@ -105,10 +105,10 @@ export async function getVendorProfile(searchName) {
 
   // 3. Deduplicate expenditures by work (a vendor can receive multiple payment tranches per work)
   const distinctWorksMap = new Map();
-  let totalPaymentLakhs = 0;
+  let totalPaymentRupees = 0;
 
   for (const exp of expenditures) {
-    totalPaymentLakhs += Number(exp.amount || 0);
+    totalPaymentRupees += Number(exp.amount || 0);
 
     if (exp.work && !distinctWorksMap.has(exp.work_id)) {
       distinctWorksMap.set(exp.work_id, exp.work);
@@ -118,7 +118,9 @@ export async function getVendorProfile(searchName) {
   const works = Array.from(distinctWorksMap.values());
   const totalWorks = works.length;
 
-  const totalPaymentCr = Number((totalPaymentLakhs / 100).toFixed(2));
+  // Stored in Rupees; convert to Lakhs (/ 100,000) and Crores (/ 10,000,000)
+  const totalPaymentLakhs = Number((totalPaymentRupees / 100000).toFixed(2));
+  const totalPaymentCr = Number((totalPaymentRupees / 10000000).toFixed(2));
   const avgPaymentLakhs =
     totalWorks > 0 ? Number((totalPaymentLakhs / totalWorks).toFixed(1)) : 0;
 
@@ -154,7 +156,11 @@ export async function getVendorProfile(searchName) {
   // RULE 1: ROUND_FIGURE_REPEAT (3+ different works with identical sanctionedAmount)
   const amountToWorksMap = new Map();
   for (const w of works) {
-    const amtStr = Number(w.sanctioned_amount || 0).toFixed(2);
+    const rawAmt =
+      w.sanctioned_amount !== null && w.sanctioned_amount !== undefined
+        ? w.sanctioned_amount
+        : w.recommended_amount;
+    const amtStr = Number((Number(rawAmt || 0) / 100000).toFixed(2));
     if (!amountToWorksMap.has(amtStr)) {
       amountToWorksMap.set(amtStr, []);
     }
@@ -190,13 +196,28 @@ export async function getVendorProfile(searchName) {
       numericRiskScore = Number(w.current_risk_score.risk_score);
     }
 
+    const rawAmt =
+      w.sanctioned_amount !== null && w.sanctioned_amount !== undefined
+        ? w.sanctioned_amount
+        : w.recommended_amount;
+    const isEstimated =
+      (w.sanctioned_amount === null || w.sanctioned_amount === undefined) &&
+      w.recommended_amount !== null &&
+      w.recommended_amount !== undefined;
+
+    const sanctionedAmountLakhs =
+      rawAmt !== null && rawAmt !== undefined && Number(rawAmt) > 0
+        ? Number((Number(rawAmt) / 100000).toFixed(2))
+        : 0;
+
     return {
       workId: w.work_id,
       mpName: w.mp?.mp_name || "Unknown MP",
       category: w.category || "",
       state: w.state?.state_name || "",
       district: w.district?.district_name || "",
-      sanctionedAmount: Number(Number(w.sanctioned_amount || 0).toFixed(2)),
+      sanctionedAmount: sanctionedAmountLakhs,
+      isEstimated,
       riskLevel: w.current_risk_score?.risk_level || null,
       riskScore: numericRiskScore,
       flags,
@@ -212,6 +233,18 @@ export async function getVendorProfile(searchName) {
     return (b.riskScore || 0) - (a.riskScore || 0);
   });
 
+  const popularVendors = await prisma.vendor.findMany({
+    take: 5,
+    orderBy: {
+      expenditures: {
+        _count: "desc",
+      },
+    },
+    select: {
+      vendor_name: true,
+    },
+  });
+
   return {
     vendorName: vendor.vendor_name,
     totalWorks,
@@ -224,6 +257,7 @@ export async function getVendorProfile(searchName) {
     distinctStates,
     avgPaymentLakhs,
     patternAlerts,
+    popularVendors: popularVendors.map((v) => v.vendor_name),
     works: formattedWorks,
   };
 }

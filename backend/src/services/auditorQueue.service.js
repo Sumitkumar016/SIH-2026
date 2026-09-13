@@ -62,8 +62,14 @@ function matchesSearch(work, searchLower) {
 export async function getCaseQueue(filters = {}) {
   const { search, riskLevel, caseStatus, source } = filters;
 
-  // 1. Base query: only Medium and High risk cases nationwide
+  const page = Math.max(1, parseInt(filters.page || 1, 10));
+  const limit = Math.max(1, parseInt(filters.limit || 20, 10));
+  const skip = (page - 1) * limit;
+  const take = limit;
+
+  // 1. Base query: only Medium and High risk sanctioned cases nationwide
   const where = {
+    status: { not: "Recommended" },
     current_risk_score: {
       risk_level: {
         in: ["Medium", "High"],
@@ -76,120 +82,180 @@ export async function getCaseQueue(filters = {}) {
     where.current_risk_score.risk_level = riskLevel;
   }
 
-  // 2. Fetch qualifying works with linked details
-  const works = await prisma.work.findMany({
-    where,
-    include: {
-      mp: {
-        select: {
-          mp_id: true,
-          mp_name: true,
+  // Filter by source
+  if (source && source !== "All") {
+    if (source.toLowerCase() === "district") {
+      where.escalations = {
+        some: {
+          escalation_source: { equals: "district", mode: "insensitive" },
         },
-      },
-      district: {
-        select: {
-          district_id: true,
-          district_name: true,
+      };
+    } else if (source.toLowerCase() === "ai") {
+      where.escalations = {
+        none: {},
+      };
+    }
+  }
+
+  // Filter by case status
+  if (caseStatus && caseStatus !== "All") {
+    const targetStatus = caseStatus.trim().toLowerCase();
+    if (targetStatus === "new") {
+      where.auditor_reports = {
+        none: {},
+      };
+    } else if (targetStatus === "under review") {
+      where.auditor_reports = {
+        some: {
+          status: { in: ["UNDER_REVIEW", "Under Review", "under_review", "under review"] },
         },
-      },
-      state: {
-        select: {
-          state_id: true,
-          state_name: true,
+      };
+    } else if (targetStatus === "resolved") {
+      where.auditor_reports = {
+        some: {
+          status: { in: ["RESOLVED", "Resolved", "resolved"] },
         },
-      },
-      current_risk_score: true,
-      auditor_reports: {
-        orderBy: [
-          { submitted_date: "desc" },
-          { report_id: "desc" },
-        ],
-        take: 1,
-      },
-      escalations: {
-        orderBy: [
-          { escalated_date: "desc" },
-          { escalation_id: "desc" },
-        ],
-        take: 1,
-      },
-      expenditures: {
-        include: {
-          vendor: {
-            select: {
-              vendor_name: true,
-            },
+      };
+    } else if (targetStatus === "escalated") {
+      where.auditor_reports = {
+        some: {
+          status: { in: ["ESCALATED", "Escalated", "escalated"] },
+        },
+      };
+    }
+  }
+
+  // Filter by search term
+  if (search && search.trim() !== "" && search !== "All") {
+    const q = search.trim();
+    where.OR = [
+      { work_id: { contains: q, mode: "insensitive" } },
+      { description: { contains: q, mode: "insensitive" } },
+      { category: { contains: q, mode: "insensitive" } },
+      { mp: { mp_name: { contains: q, mode: "insensitive" } } },
+      { district: { district_name: { contains: q, mode: "insensitive" } } },
+      { state: { state_name: { contains: q, mode: "insensitive" } } },
+    ];
+  }
+
+  // 2. Parallel Count and Paginated Query strictly in PostgreSQL
+  const [total, works] = await prisma.$transaction([
+    prisma.work.count({ where }),
+    prisma.work.findMany({
+      where,
+      skip,
+      take,
+      orderBy: [
+        { current_risk_score: { risk_score: "desc" } },
+        { sanction_date: "desc" },
+        { work_id: "desc" },
+      ],
+      select: {
+        work_id: true,
+        category: true,
+        description: true,
+        sanction_date: true,
+        mp: {
+          select: {
+            mp_id: true,
+            mp_name: true,
+          },
+        },
+        district: {
+          select: {
+            district_id: true,
+            district_name: true,
+          },
+        },
+        state: {
+          select: {
+            state_id: true,
+            state_name: true,
+          },
+        },
+        current_risk_score: {
+          select: {
+            risk_level: true,
+            risk_score: true,
+            flag_reason: true,
+            calculated_at: true,
+          },
+        },
+        escalations: {
+          orderBy: [{ escalated_date: "desc" }, { escalation_id: "desc" }],
+          take: 1,
+          select: {
+            escalation_source: true,
+            escalation_note: true,
+            escalated_date: true,
+          },
+        },
+        auditor_reports: {
+          orderBy: [{ submitted_date: "desc" }, { report_id: "desc" }],
+          take: 1,
+          select: {
+            status: true,
+            conclusion: true,
+            notes: true,
+            submitted_date: true,
           },
         },
       },
-    },
-  });
+    }),
+  ]);
 
-  const searchLower = search && search.trim() !== "" ? search.toLowerCase().trim() : null;
-  const results = [];
-
-  for (const w of works) {
-    // 3. Resolve latest report & escalation from the eager-loaded relation
+  // 3. Map ONLY the returned page records (e.g. 20 items)
+  const results = works.map((w) => {
     const latestReport = w.auditor_reports?.[0] || null;
     const latestEscalation = w.escalations?.[0] || null;
 
-    // Case status ('New' if no report filed yet)
     const derivedCaseStatus = formatCaseStatus(latestReport?.status);
-
-    // Escalation source ('ai' if no escalation row exists)
     const derivedEscalationSource =
-      latestEscalation?.escalation_source ||
-      latestEscalation?.escalationSource ||
-      "ai";
-
+      latestEscalation?.escalation_source || "ai";
     const derivedEscalationNote =
-      latestEscalation?.escalation_note ||
-      latestEscalation?.escalationNote ||
-      null;
+      latestEscalation?.escalation_note || null;
 
-    // Filter by case status if requested
-    if (caseStatus && caseStatus !== "All") {
-      if (derivedCaseStatus.toLowerCase() !== caseStatus.toLowerCase()) {
-        continue;
-      }
-    }
-
-    // Filter by source if requested
-    if (source && source !== "All") {
-      if (derivedEscalationSource.toLowerCase() !== source.toLowerCase()) {
-        continue;
-      }
-    }
-
-    // Filter by search term
-    if (!matchesSearch(w, searchLower)) {
-      continue;
-    }
-
-    let numericRiskScore = 0;
-    if (w.current_risk_score?.risk_score !== null && w.current_risk_score?.risk_score !== undefined) {
-      numericRiskScore = Number(w.current_risk_score.risk_score);
-    }
-
-    results.push({
+    return {
       workId: w.work_id,
-      mpName: w.mp?.mp_name || "Unknown MP",
+      description: w.description || "",
       category: w.category || "",
-      state: w.state?.state_name || "",
-      district: w.district?.district_name || "",
+      mpName: w.mp?.mp_name || "Unknown MP",
+      district: w.district?.district_name || "Unknown District",
+      state: w.state?.state_name || "Unknown State",
       riskLevel: w.current_risk_score?.risk_level || "Medium",
-      riskScore: numericRiskScore,
-      flagReason: w.current_risk_score?.flag_reason || "",
+      riskScore:
+        w.current_risk_score?.risk_score !== null &&
+        w.current_risk_score?.risk_score !== undefined
+          ? Number(w.current_risk_score.risk_score)
+          : 50,
+      flagReason:
+        w.current_risk_score?.flag_reason || "Flagged by AI sentinel logic",
       caseStatus: derivedCaseStatus,
       escalationSource: derivedEscalationSource,
       escalationNote: derivedEscalationNote,
-    });
-  }
+      escalatedDate: latestEscalation?.escalated_date || null,
+      lastActionDate:
+        latestReport?.submitted_date ||
+        latestEscalation?.escalated_date ||
+        w.sanction_date ||
+        null,
+    };
+  });
 
-  // Sort results by riskScore descending
-  results.sort((a, b) => (b.riskScore || 0) - (a.riskScore || 0));
+  const totalPages = Math.ceil(total / limit) || 1;
 
-  return { data: results };
+  return {
+    data: results,
+    total,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages,
+      hasNextPage: page < totalPages,
+      hasPreviousPage: page > 1,
+    },
+  };
 }
 
 export default {

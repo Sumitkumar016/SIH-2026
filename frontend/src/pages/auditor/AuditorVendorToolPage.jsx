@@ -41,14 +41,6 @@ export default function AuditorVendorToolPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const sampleVendors = [
-    'Rajasthan Project Engineering',
-    'Brahmaputra Engineering Works',
-    'Cauvery Construction Services',
-    'Mithila Infrastructure Services',
-    'Coastal Development Works',
-  ];
-
   const fetchVendorData = async (name) => {
     try {
       setLoading(true);
@@ -56,6 +48,9 @@ export default function AuditorVendorToolPage() {
       const data = await auditorApi.getVendorProfile(name);
       if (data) {
         setVendorData(data);
+        if (!name && data.vendorName) {
+          setSearchTerm(data.vendorName);
+        }
       } else {
         setError(`No contractor records found for "${name}".`);
       }
@@ -68,8 +63,8 @@ export default function AuditorVendorToolPage() {
   };
 
   useEffect(() => {
-    const q = searchParams.get('vendor') || 'Rajasthan Project Engineering';
-    setSearchTerm(q);
+    const q = searchParams.get('vendor') || '';
+    if (q) setSearchTerm(q);
     fetchVendorData(q);
   }, [searchParams]);
 
@@ -145,22 +140,24 @@ export default function AuditorVendorToolPage() {
           </button>
         </form>
 
-        <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
-          <span className="text-slate-500 font-semibold text-[11px]">Quick Forensics Presets:</span>
-          {sampleVendors.map((v) => (
-            <button
-              key={v}
-              onClick={() => handleSelectSampleVendor(v)}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors ${
-                searchTerm.toLowerCase() === v.toLowerCase()
-                  ? 'bg-purple-100 text-purple-900 border-purple-300 font-bold'
-                  : 'bg-[#F7F9F9] text-slate-700 border-[#EFF3F4] hover:bg-slate-100'
-              }`}
-            >
-              {v}
-            </button>
-          ))}
-        </div>
+        {vendorData?.popularVendors && vendorData.popularVendors.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+            <span className="text-slate-500 font-semibold text-[11px]">Database Contractor Presets:</span>
+            {vendorData.popularVendors.map((v) => (
+              <button
+                key={v}
+                onClick={() => handleSelectSampleVendor(v)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors ${
+                  searchTerm.toLowerCase() === v.toLowerCase()
+                    ? 'bg-purple-100 text-purple-900 border-purple-300 font-bold'
+                    : 'bg-[#F7F9F9] text-slate-700 border-[#EFF3F4] hover:bg-slate-100'
+                }`}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {error && !vendorData ? (

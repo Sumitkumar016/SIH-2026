@@ -35,7 +35,21 @@ export async function getMyWorks(mpId, filters = {}) {
     throw error;
   }
 
-  const { search, status, category, riskLevel } = filters;
+  const {
+    search,
+    status,
+    category,
+    riskLevel,
+    page = 1,
+    limit = 10,
+    sortField = "recommendedDate",
+    sortDirection = "desc",
+  } = filters;
+
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10) || 10));
+  const skip = (pageNum - 1) * limitNum;
+  const take = limitNum;
 
   // 1. Fetch MP profile metadata
   const mp = await prisma.mp.findUnique({
@@ -95,49 +109,93 @@ export async function getMyWorks(mpId, filters = {}) {
     ];
   }
 
-  // 3. Query all works matching database filters
-  const works = await prisma.work.findMany({
-    where,
-    include: {
-      current_risk_score: true,
-      expenditures: {
-        include: {
-          vendor: {
-            select: {
-              vendor_name: true,
+  // Filter by status in DB
+  if (status && status !== "All") {
+    const targetStatus = status.trim().toLowerCase();
+    if (targetStatus === "completed") {
+      where.status = "Completed";
+    } else if (targetStatus === "sanctioned") {
+      where.status = "Sanctioned";
+    } else if (targetStatus === "recommended") {
+      where.status = "Recommended";
+    } else if (targetStatus === "ongoing") {
+      where.status = "Ongoing";
+    } else if (targetStatus === "under review") {
+      where.OR = [
+        ...(where.OR || []),
+        { escalations: { some: {} } },
+        {
+          auditor_reports: {
+            some: {
+              status: { in: ["UNDER_REVIEW", "UNDER REVIEW", "ESCALATED", "Escalated"] },
             },
           },
         },
-      },
-      auditor_reports: {
-        select: {
-          status: true,
-        },
-      },
-      escalations: {
-        select: {
-          escalation_id: true,
-        },
-      },
-    },
-    orderBy: {
-      recommended_date: "desc",
-    },
-  });
-
-  // 4. Apply status filter in memory using computed display status
-  let filteredWorks = works;
-  if (status && status !== "All") {
-    const targetStatus = status.trim().toLowerCase();
-    filteredWorks = filteredWorks.filter(
-      (w) => getDisplayStatus(w).toLowerCase() === targetStatus
-    );
+      ];
+    } else if (targetStatus === "delayed") {
+      where.status = "Ongoing";
+      where.OR = [
+        ...(where.OR || []),
+        { completion_date: { lt: new Date() } },
+        { current_risk_score: { delay_slippage_pct: { gte: 25 } } },
+        { current_risk_score: { flag_reason: { contains: "delay", mode: "insensitive" } } },
+      ];
+    }
   }
 
-  // 5. Map works to response shape
-  const data = [];
+  // Sorting
+  const dir = (sortDirection || "desc").toLowerCase() === "asc" ? "asc" : "desc";
+  let orderByClause = { recommended_date: dir };
+  if (sortField === "workId") {
+    orderByClause = { work_id: dir };
+  } else if (sortField === "category") {
+    orderByClause = { category: dir };
+  } else if (sortField === "sanctionDate") {
+    orderByClause = { sanction_date: dir };
+  } else if (sortField === "sanctionedAmount") {
+    orderByClause = { sanctioned_amount: dir };
+  } else if (sortField === "status") {
+    orderByClause = { status: dir };
+  } else if (sortField === "riskScore") {
+    orderByClause = { current_risk_score: { risk_score: dir } };
+  }
 
-  for (const work of filteredWorks) {
+  // 3. Query count and paginated works strictly in PostgreSQL
+  const [total, works] = await prisma.$transaction([
+    prisma.work.count({ where }),
+    prisma.work.findMany({
+      where,
+      skip,
+      take,
+      orderBy: [orderByClause, { work_id: "desc" }],
+      include: {
+        current_risk_score: true,
+        expenditures: {
+          include: {
+            vendor: {
+              select: {
+                vendor_name: true,
+              },
+            },
+          },
+        },
+        auditor_reports: {
+          select: {
+            status: true,
+          },
+        },
+        escalations: {
+          select: {
+            escalation_id: true,
+          },
+        },
+      },
+    }),
+  ]);
+
+  // 4. Map ONLY the returned page works
+  const data = [];
+  for (const work of works) {
     const rs = work.current_risk_score;
     const vendorName = resolveVendorName(work.expenditures);
 
@@ -154,6 +212,20 @@ export async function getMyWorks(mpId, filters = {}) {
       ? new Date(work.sanction_date).toISOString()
       : null;
 
+    const rawAmt =
+      work.sanctioned_amount !== null && work.sanctioned_amount !== undefined
+        ? work.sanctioned_amount
+        : work.recommended_amount;
+    const isEstimated =
+      (work.sanctioned_amount === null || work.sanctioned_amount === undefined) &&
+      work.recommended_amount !== null &&
+      work.recommended_amount !== undefined;
+
+    const sanctionedAmountLakhs =
+      rawAmt !== null && rawAmt !== undefined && Number(rawAmt) > 0
+        ? Number((Number(rawAmt) / 100000).toFixed(2))
+        : 0;
+
     data.push({
       workId: work.work_id,
       description: work.description || "",
@@ -161,7 +233,8 @@ export async function getMyWorks(mpId, filters = {}) {
       category: work.category || "",
       recommendedDate,
       sanctionDate,
-      sanctionedAmount: Number(Number(work.sanctioned_amount || 0).toFixed(2)),
+      sanctionedAmount: sanctionedAmountLakhs,
+      isEstimated,
       status: getDisplayStatus(work),
       riskLevel: rs?.risk_level || null,
       riskScore: numericRiskScore,
@@ -172,6 +245,8 @@ export async function getMyWorks(mpId, filters = {}) {
   const districtName =
     mp.works[0]?.district?.district_name || mp.constituency || "";
 
+  const totalPages = Math.ceil(total / limitNum) || 1;
+
   return {
     data,
     mp: {
@@ -179,6 +254,15 @@ export async function getMyWorks(mpId, filters = {}) {
       constituency: mp.constituency || "",
       state: mp.state?.state_name || "",
       district: districtName,
+    },
+    total,
+    pagination: {
+      page: pageNum,
+      limit: limitNum,
+      total,
+      totalPages,
+      hasNextPage: pageNum < totalPages,
+      hasPreviousPage: pageNum > 1,
     },
   };
 }

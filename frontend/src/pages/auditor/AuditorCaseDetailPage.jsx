@@ -40,7 +40,9 @@ import { auditorApi } from '../../api/auditorApi';
  * Rich AI Investigation & Action Center
  */
 export default function AuditorCaseDetailPage() {
-  const { workId } = useParams();
+  const params = useParams();
+  const rawWorkId = params['*'] || params.workId || '';
+  const workId = rawWorkId ? decodeURIComponent(rawWorkId) : '';
   const navigate = useNavigate();
   const [caseData, setCaseData] = useState(null);
   const [loading, setLoading] = useState(true);

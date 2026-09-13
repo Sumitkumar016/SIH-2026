@@ -1,9 +1,18 @@
 import express from "express";
 import { protect, restrictTo } from "../middleware/auth.middleware.js";
 import {
-  getNationalOverview,
+  getOverviewKpis,
+  getOverviewRisk,
+  getOverviewStates,
+  getOverviewUrgent,
+  getOverviewAlerts,
   getFlaggedWorks,
   getMpPerformance,
+  getTrendsMonthly,
+  getTrendsCategories,
+  getTrendsVendors,
+  getTrendsStates,
+  getTrendsLocations,
   getTrendsAnalytics,
   getPredictions,
 } from "../controllers/ministry.controller.js";
@@ -11,12 +20,15 @@ import {
 const router = express.Router();
 
 /**
- * GET /api/ministry/overview
- * National Overview:
- * High-level national metrics, state-wise risk summaries, and 10 recent high-risk alerts.
+ * Overview Endpoints:
+ * Decomposed into 5 independent services for high resilience and low latency.
  * Role: "ministry"
  */
-router.get("/overview", protect, restrictTo("ministry"), getNationalOverview);
+router.get("/overview/kpis", protect, restrictTo("ministry"), getOverviewKpis);
+router.get("/overview/risk", protect, restrictTo("ministry"), getOverviewRisk);
+router.get("/overview/states", protect, restrictTo("ministry"), getOverviewStates);
+router.get("/overview/urgent", protect, restrictTo("ministry"), getOverviewUrgent);
+router.get("/overview/alerts", protect, restrictTo("ministry"), getOverviewAlerts);
 
 /**
  * GET /api/ministry/flagged
@@ -35,11 +47,15 @@ router.get("/flagged", protect, restrictTo("ministry"), getFlaggedWorks);
 router.get("/mp-performance", protect, restrictTo("ministry"), getMpPerformance);
 
 /**
- * GET /api/ministry/trends
- * National Trends & Analytics:
- * 12-month time series, category vulnerabilities, vendor concentration, and state comparisons.
+ * Trends & Analytics Endpoints:
+ * Decomposed into 4 isolated computation domains + location metadata + backwards-compatible root.
  * Role: "ministry"
  */
+router.get("/trends/monthly", protect, restrictTo("ministry"), getTrendsMonthly);
+router.get("/trends/categories", protect, restrictTo("ministry"), getTrendsCategories);
+router.get("/trends/vendors", protect, restrictTo("ministry"), getTrendsVendors);
+router.get("/trends/states", protect, restrictTo("ministry"), getTrendsStates);
+router.get("/trends/locations", protect, restrictTo("ministry"), getTrendsLocations);
 router.get("/trends", protect, restrictTo("ministry"), getTrendsAnalytics);
 
 /**

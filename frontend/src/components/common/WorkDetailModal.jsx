@@ -39,13 +39,7 @@ export default function WorkDetailModal({
 }) {
   if (!isOpen || !work) return null;
 
-  // Prepare Explainability Chart Data
-  const breakdown = work.riskFactorBreakdown || {
-    costOverrun: 35,
-    delaySlippage: 30,
-    duplicateSimilarity: 20,
-    vendorAnomaly: 15,
-  };
+  const breakdown = work.riskFactorBreakdown || {};
 
   const chartData = [
     { factor: 'Cost Inflation', percent: breakdown.costOverrun || 0, color: '#EF4444' },

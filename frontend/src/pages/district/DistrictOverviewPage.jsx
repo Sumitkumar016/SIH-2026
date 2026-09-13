@@ -57,12 +57,7 @@ export default function DistrictOverviewPage() {
     loadOverview();
   }, []);
 
-  const district = data?.district || {
-    districtName: 'Patna',
-    headquarters: 'Patna Collectorate',
-    state: 'Bihar',
-    nodalOfficer: 'District Magistrate & Collector',
-  };
+  const district = data?.district || {};
   const kpis = data?.kpis;
   const mpBreakdown = data?.mpBreakdown || [];
 

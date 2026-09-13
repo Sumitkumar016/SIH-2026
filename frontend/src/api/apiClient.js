@@ -70,15 +70,43 @@ export async function apiFetch(endpoint, options = {}) {
   activeRequestsCount++;
   notifyActivity();
 
+  const startTime = Date.now();
+  console.log('[apiFetch] START', url, {
+    hasExternalSignal: !!options.signal,
+    alreadyAborted: options.signal?.aborted,
+  });
+
+  if (options.signal) {
+    options.signal.addEventListener('abort', () => {
+      const elapsed = Date.now() - startTime;
+      console.log('[apiFetch] EXTERNAL SIGNAL ABORTED', url, `after ${elapsed}ms`);
+    });
+  }
+
   const controller = new AbortController();
+  let timedOut = false;
+
   const timeoutId = setTimeout(() => {
-    controller.abort();
-  }, options.timeout || 8000);
+    timedOut = true;
+    const elapsed = Date.now() - startTime;
+    console.log('[apiFetch] INTERNAL TIMEOUT ABORT', url, `after ${elapsed}ms`);
+    controller.abort(new DOMException(`Request timed out after ${options.timeout || 30000}ms`, 'TimeoutError'));
+  }, options.timeout || 30000);
+
+  if (options.signal) {
+    if (options.signal.aborted) {
+      controller.abort(options.signal.reason);
+    } else {
+      options.signal.addEventListener('abort', () => {
+        controller.abort(options.signal.reason);
+      }, { once: true });
+    }
+  }
 
   try {
     const response = await fetch(url, {
       ...options,
-      signal: options.signal || controller.signal,
+      signal: controller.signal,
       headers,
       ...(body !== undefined ? { body } : {}),
     });
@@ -94,6 +122,14 @@ export async function apiFetch(endpoint, options = {}) {
     }
 
     return data;
+  } catch (err) {
+    const isAbort = err.name === 'AbortError' || err.name === 'TimeoutError' || err.code === 20;
+    if (isAbort) {
+      err.isTimeout = timedOut;
+      err.isExternalAbort = Boolean(options.signal?.aborted);
+      err.isAborted = true;
+    }
+    throw err;
   } finally {
     clearTimeout(timeoutId);
     activeRequestsCount = Math.max(0, activeRequestsCount - 1);

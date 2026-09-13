@@ -53,13 +53,21 @@ export default function MpPerformancePage() {
   const [sortField, setSortField] = useState('fundUtilization');
   const [sortDirection, setSortDirection] = useState('desc'); // 'asc' | 'desc'
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 15;
+  const [totalMpsCount, setTotalMpsCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const pageSize = 10;
 
   // Lightweight details expand / modal state
   const [expandedMpName, setExpandedMpName] = useState(null);
   const [selectedMpForModal, setSelectedMpForModal] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
 
-  const loadMpData = async () => {
+  // Reset to page 1 on filter or search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filters]);
+
+  const loadMpData = async (isMounted = { current: true }) => {
     try {
       setLoading(true);
       setError(null);
@@ -69,34 +77,42 @@ export default function MpPerformancePage() {
         ...filters,
         sortField,
         sortDirection,
+        page: currentPage,
+        limit: pageSize,
       });
 
+      if (!isMounted.current) return;
       setMps(res.data || []);
+      setTotalMpsCount(res.pagination?.total ?? res.total ?? (res.data || []).length);
+      setTotalPages(res.pagination?.totalPages ?? Math.max(1, Math.ceil((res.total || 0) / pageSize)));
+
       if (res.availableStates && res.availableStates.length > 0) {
         setAvailableStates(res.availableStates);
       }
       if (res.availableDistricts && res.availableDistricts.length > 0) {
         setAvailableDistricts(res.availableDistricts);
       }
-      setCurrentPage(1);
     } catch (err) {
+      if (!isMounted.current) return;
+      if (err?.isAborted && !err?.isTimeout) {
+        return;
+      }
       console.error('Failed to load MP performance records:', err);
       setError(err?.message || 'Failed to retrieve MP performance data.');
     } finally {
-      setLoading(false);
+      if (isMounted.current) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    loadMpData();
-  }, [searchQuery, filters, sortField, sortDirection]);
-
-  // Pagination Slice
-  const totalPages = Math.ceil(mps.length / pageSize) || 1;
-  const paginatedMps = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return mps.slice(start, start + pageSize);
-  }, [mps, currentPage, pageSize]);
+    const isMounted = { current: true };
+    loadMpData(isMounted);
+    return () => {
+      isMounted.current = false;
+    };
+  }, [searchQuery, filters, sortField, sortDirection, currentPage]);
 
   const handleSort = (field) => {
     if (sortField === field) {
@@ -105,10 +121,15 @@ export default function MpPerformancePage() {
       setSortField(field);
       setSortDirection('desc');
     }
+    setCurrentPage(1);
   };
 
   const handleFilterChange = (key, value) => {
-    setFilters((prev) => ({ ...prev, [key]: value }));
+    setFilters((prev) => ({
+      ...prev,
+      [key]: value,
+      ...(key === 'state' ? { district: 'All' } : {}),
+    }));
   };
 
   const handleResetFilters = () => {
@@ -127,44 +148,62 @@ export default function MpPerformancePage() {
     searchQuery.trim() !== '' ||
     Object.entries(filters).some(([_, val]) => val && val !== 'All');
 
-  // CSV Export handler
-  const handleExportCSV = () => {
-    const headers = [
-      'MP Name',
-      'State',
-      'Constituency / District',
-      'Fund Utilization %',
-      'Total Sanctioned (Lakhs)',
-      'Total Expenditure (Lakhs)',
-      'Total Works Recommended',
-      'Total Works Completed',
-      'Completion Rate %',
-    ];
-    const rows = mps.map((m) => [
-      `"${m.mpName}"`,
-      `"${m.state}"`,
-      `"${m.constituency || m.district}"`,
-      m.fundUtilization !== null ? `${m.fundUtilization}%` : 'N/A',
-      m.totalSanctionedAmount,
-      m.totalExpenditure,
-      m.totalWorks,
-      m.completedWorks,
-      m.completionRate !== null ? `${m.completionRate}%` : 'N/A',
-    ]);
+  // CSV Export handler: exports full filtered dataset rather than only the current page
+  const handleExportCSV = async () => {
+    try {
+      setIsExporting(true);
+      const apiCaller = ministryApi?.getMpLeaderboard || mpladsService.getMpLeaderboard;
+      const res = await apiCaller({
+        search: searchQuery,
+        ...filters,
+        sortField,
+        sortDirection,
+        page: 1,
+        limit: Math.max(50, totalMpsCount || 600),
+      });
 
-    const csvContent =
-      'data:text/csv;charset=utf-8,' +
-      [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute(
-      'download',
-      `MPLADS_MP_Performance_Leaderboard_${new Date().toISOString().slice(0, 10)}.csv`
-    );
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const exportRows = (res?.data && res.data.length > 0) ? res.data : mps;
+      const headers = [
+        'MP Name',
+        'State',
+        'Constituency / District',
+        'Fund Utilization %',
+        'Total Sanctioned (Lakhs)',
+        'Total Expenditure (Lakhs)',
+        'Total Works Recommended',
+        'Total Works Completed',
+        'Completion Rate %',
+      ];
+      const rows = exportRows.map((m) => [
+        `"${m.mpName}"`,
+        `"${m.state}"`,
+        `"${m.constituency || m.district}"`,
+        m.fundUtilization !== null ? `${m.fundUtilization}%` : 'N/A',
+        m.totalSanctionedAmount,
+        m.totalExpenditure,
+        m.totalWorks,
+        m.completedWorks,
+        m.completionRate !== null ? `${m.completionRate}%` : 'N/A',
+      ]);
+
+      const csvContent =
+        'data:text/csv;charset=utf-8,' +
+        [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute(
+        'download',
+        `MPLADS_MP_Performance_Leaderboard_${new Date().toISOString().slice(0, 10)}.csv`
+      );
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error('Failed to export CSV:', err);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const renderSortIcon = (field) => {
@@ -199,10 +238,11 @@ export default function MpPerformancePage() {
 
         <button
           onClick={handleExportCSV}
-          className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-[#0F1419] bg-white border border-[#EFF3F4] rounded-xl hover:bg-[#F7F9F9] hover:border-slate-300 transition-all shadow-xs self-start sm:self-auto shrink-0"
+          disabled={isExporting}
+          className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-[#0F1419] bg-white border border-[#EFF3F4] rounded-xl hover:bg-[#F7F9F9] hover:border-slate-300 transition-all shadow-xs self-start sm:self-auto shrink-0 disabled:opacity-50"
         >
           <Download className="w-4 h-4 text-slate-600" />
-          <span>Export Leaderboard (CSV)</span>
+          <span>{isExporting ? 'Exporting...' : 'Export Leaderboard (CSV)'}</span>
         </button>
       </div>
 
@@ -306,7 +346,7 @@ export default function MpPerformancePage() {
         {/* Table Results Bar */}
         <div className="px-5 py-3 border-b border-[#EFF3F4] flex items-center justify-between text-xs text-slate-500 bg-[#F7F9F9]/50">
           <span>
-            Showing <strong>{paginatedMps.length}</strong> of <strong>{mps.length}</strong> MPs
+            Showing <strong>{totalMpsCount > 0 ? (currentPage - 1) * pageSize + 1 : 0}–{Math.min(currentPage * pageSize, totalMpsCount)}</strong> of <strong>{totalMpsCount}</strong> MPs
           </span>
           <span className="text-[11px] font-mono text-slate-400">
             Sorted by: {sortField} ({sortDirection.toUpperCase()})
@@ -399,7 +439,7 @@ export default function MpPerformancePage() {
                     <td className="py-3 px-3"><div className="h-4 bg-slate-200 rounded w-4" /></td>
                   </tr>
                 ))
-              ) : paginatedMps.length === 0 ? (
+              ) : mps.length === 0 ? (
                 <tr>
                   <td colSpan="8" className="py-8">
                     <EmptyState
@@ -412,7 +452,7 @@ export default function MpPerformancePage() {
                   </td>
                 </tr>
               ) : (
-                paginatedMps.map((mp) => {
+                mps.map((mp) => {
                   const isExpanded = expandedMpName === mp.mpName;
                   const utilizationDisplay =
                     mp.fundUtilization !== null && !isNaN(mp.fundUtilization)
@@ -574,10 +614,12 @@ export default function MpPerformancePage() {
                                     Sector Focus
                                   </span>
                                   <span className="text-xs font-bold text-slate-700 block truncate">
-                                    {Object.keys(mp.categories).length} Categories
+                                    {Object.keys(mp.categories || {}).length} Categories
                                   </span>
                                   <span className="text-[10px] text-slate-400 block mt-0.5 truncate">
-                                    {Object.keys(mp.categories).slice(0, 2).join(', ')}
+                                    {Object.keys(mp.categories || {}).length > 0
+                                      ? Object.keys(mp.categories).slice(0, 2).join(', ')
+                                      : 'General development'}
                                   </span>
                                 </div>
                               </div>
@@ -593,10 +635,10 @@ export default function MpPerformancePage() {
           </table>
         </div>
 
-        {/* Pagination Bar */}
+        {/* Pagination Bar with True Server-Side Controls */}
         <div className="px-5 py-3 border-t border-[#EFF3F4] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs bg-white">
           <span className="text-slate-500">
-            Page <strong>{currentPage}</strong> of <strong>{totalPages}</strong> (Total {mps.length} MPs)
+            Showing <strong>{totalMpsCount > 0 ? (currentPage - 1) * pageSize + 1 : 0}</strong> to <strong>{Math.min(currentPage * pageSize, totalMpsCount)}</strong> of <strong>{totalMpsCount}</strong> MPs
           </span>
 
           <div className="flex items-center gap-1.5">
@@ -609,24 +651,13 @@ export default function MpPerformancePage() {
               <ChevronLeft className="w-4 h-4" />
             </button>
 
-            {/* Page number buttons */}
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
-              <button
-                key={pageNum}
-                onClick={() => setCurrentPage(pageNum)}
-                className={`w-7 h-7 rounded-lg text-xs font-semibold font-mono transition-all ${
-                  currentPage === pageNum
-                    ? 'bg-[#1D9BF0] text-white shadow-xs'
-                    : 'text-slate-600 hover:bg-[#F7F9F9] border border-transparent hover:border-[#EFF3F4]'
-                }`}
-              >
-                {pageNum}
-              </button>
-            ))}
+            <span className="px-3 py-1 font-mono font-semibold text-slate-700 bg-slate-50 border border-[#EFF3F4] rounded-lg">
+              Page {currentPage} of {totalPages}
+            </span>
 
             <button
               onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-              disabled={currentPage === totalPages || totalPages === 0}
+              disabled={currentPage >= totalPages || totalPages === 0}
               className="p-1.5 rounded-lg border border-[#EFF3F4] text-slate-600 hover:bg-[#F7F9F9] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               title="Next page"
             >
@@ -730,14 +761,20 @@ export default function MpPerformancePage() {
                 <span>Recommended Work Sectors</span>
               </h4>
               <div className="flex flex-wrap gap-1.5">
-                {Object.entries(selectedMpForModal.categories).map(([cat, count]) => (
-                  <span
-                    key={cat}
-                    className="text-xs px-2.5 py-1 rounded-lg bg-slate-50 text-slate-700 border border-[#EFF3F4] font-medium"
-                  >
-                    {cat} <span className="font-mono text-slate-400 font-bold">({count})</span>
+                {Object.entries(selectedMpForModal.categories || {}).length > 0 ? (
+                  Object.entries(selectedMpForModal.categories).map(([cat, count]) => (
+                    <span
+                      key={cat}
+                      className="text-xs px-2.5 py-1 rounded-lg bg-slate-50 text-slate-700 border border-[#EFF3F4] font-medium"
+                    >
+                      {cat} <span className="font-mono text-slate-400 font-bold">({count})</span>
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-xs text-slate-400 italic">
+                    No categorized sector works recorded for this constituency.
                   </span>
-                ))}
+                )}
               </div>
             </div>
 

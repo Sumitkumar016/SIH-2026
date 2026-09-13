@@ -13,6 +13,8 @@ import {
   X,
   Sparkles,
   Info,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import RiskBadge from '../../components/common/RiskBadge';
 import SearchBox from '../../components/common/SearchBox';
@@ -33,6 +35,12 @@ export default function DistrictVerificationQueuePage() {
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterRisk, setFilterRisk] = useState('All');
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const pageSize = 15;
+
   // Modal / Action states
   const [escalatingWork, setEscalatingWork] = useState(null);
   const [escalationNote, setEscalationNote] = useState('');
@@ -41,12 +49,22 @@ export default function DistrictVerificationQueuePage() {
   // Toast / notification state
   const [toastMessage, setToastMessage] = useState(null);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
   const loadQueue = async () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await districtApi.getVerificationQueue();
+      const res = await districtApi.getVerificationQueue({
+        search: searchQuery,
+        page: currentPage,
+        limit: pageSize,
+      });
       setQueueWorks(res.data || []);
+      setTotalCount(res.pagination?.total ?? res.total ?? (res.data || []).length);
+      setTotalPages(res.pagination?.totalPages ?? Math.max(1, Math.ceil((res.total || 0) / pageSize)));
     } catch (err) {
       console.error('Failed to load verification queue:', err);
       setError(err?.message || 'Failed to retrieve district verification queue.');
@@ -57,7 +75,7 @@ export default function DistrictVerificationQueuePage() {
 
   useEffect(() => {
     loadQueue();
-  }, []);
+  }, [searchQuery, currentPage]);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -89,7 +107,7 @@ export default function DistrictVerificationQueuePage() {
     setEscalationNote('Mandatory completion photo evidence not provided after multiple statutory reminder periods.');
   };
 
-  // Submit Escalation to Investigation (Updates shared mock data for Auditor)
+  // Submit Escalation to Investigation (Updates database for Auditor)
   const handleSubmitEscalation = async (e) => {
     e.preventDefault();
     if (!escalatingWork || !escalationNote.trim()) return;
@@ -150,7 +168,7 @@ export default function DistrictVerificationQueuePage() {
         <div className="flex items-center gap-3 bg-white border border-[#EFF3F4] px-3.5 py-2 rounded-xl text-xs font-mono shadow-xs self-start md:self-auto">
           <div>
             <span className="text-slate-400 block text-[10px] uppercase font-bold">Pending Queue</span>
-            <span className="text-base font-extrabold text-amber-700">{queueWorks.length} Works</span>
+            <span className="text-base font-extrabold text-amber-700">{totalCount} Works</span>
           </div>
         </div>
       </div>
@@ -349,7 +367,7 @@ export default function DistrictVerificationQueuePage() {
           </table>
         </div>
 
-        {/* Informational Callout Bar */}
+        {/* Informational Callout Bar & Pagination */}
         <div className="p-3.5 bg-[#F7F9F9] border-t border-[#EFF3F4] flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
           <div className="flex items-center gap-1.5">
             <Info className="w-4 h-4 text-[#1D9BF0]" />
@@ -357,9 +375,32 @@ export default function DistrictVerificationQueuePage() {
               Under MPLADS guidelines, physical verification photos must be uploaded within 30 days of completion before final account settlement.
             </span>
           </div>
-          <span className="font-mono text-[11px] font-semibold text-slate-700">
-            District Queue: {filteredQueue.length} Cases
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="font-mono text-[11px] font-semibold text-slate-700">
+              Showing {totalCount > 0 ? (currentPage - 1) * pageSize + 1 : 0} to {Math.min(currentPage * pageSize, totalCount)} of {totalCount} Cases
+            </span>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage <= 1}
+                  className="p-1 rounded border border-[#EFF3F4] bg-white text-slate-600 disabled:opacity-40"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+                <span className="font-mono text-[11px]">
+                  {currentPage}/{totalPages}
+                </span>
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage >= totalPages}
+                  className="p-1 rounded border border-[#EFF3F4] bg-white text-slate-600 disabled:opacity-40"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

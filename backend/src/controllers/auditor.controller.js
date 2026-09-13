@@ -40,17 +40,17 @@ const assetVerificationSchema = z.object({
  * Protected with protect, restrictTo('auditor').
  */
 export const getCaseQueue = asyncHandler(async (req, res) => {
-  const { search, riskLevel, caseStatus, source } = req.query;
-
-  const result = await getCaseQueueService({
-    search,
-    riskLevel,
-    caseStatus,
-    source,
-  });
-
+  const result = await getCaseQueueService(req.query);
   return res.status(200).json(result);
 });
+
+function extractWorkId(param) {
+  let val = param;
+  if (Array.isArray(val)) {
+    val = val.join("/");
+  }
+  return val ? decodeURIComponent(val) : "";
+}
 
 /**
  * GET /api/auditor/case/:workId
@@ -58,7 +58,7 @@ export const getCaseQueue = asyncHandler(async (req, res) => {
  * Protected with protect, restrictTo('auditor').
  */
 export const getCaseById = asyncHandler(async (req, res) => {
-  const { workId } = req.params;
+  const workId = extractWorkId(req.params.workId || req.query.workId);
   const result = await getCaseByIdService(workId);
   return res.status(200).json(result);
 });
@@ -69,7 +69,7 @@ export const getCaseById = asyncHandler(async (req, res) => {
  * Protected with protect, restrictTo('auditor').
  */
 export const updateCaseAction = asyncHandler(async (req, res) => {
-  const { workId } = req.params;
+  const workId = extractWorkId(req.params.workId || req.body.workId);
   const { actionType } = req.body || {};
 
   if (!actionType || !VALID_ACTIONS.includes(actionType)) {
@@ -111,7 +111,7 @@ export const updateCaseAction = asyncHandler(async (req, res) => {
  * Protected with protect, restrictTo('auditor').
  */
 export const submitAuditorReport = asyncHandler(async (req, res) => {
-  const { workId } = req.params;
+  const workId = extractWorkId(req.params.workId || req.body.workId);
 
   const parsed = reportSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -136,7 +136,7 @@ export const submitAuditorReport = asyncHandler(async (req, res) => {
  * Protected with protect, restrictTo('auditor').
  */
 export const submitAssetVerification = asyncHandler(async (req, res) => {
-  const { workId } = req.params;
+  const workId = extractWorkId(req.params.workId || req.body.workId);
 
   const parsed = assetVerificationSchema.safeParse(req.body);
   if (!parsed.success) {

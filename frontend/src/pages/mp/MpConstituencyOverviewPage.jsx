@@ -52,14 +52,7 @@ export default function MpConstituencyOverviewPage() {
     loadOverview();
   }, []);
 
-  const mp = data?.mp || {
-    mpName: 'Hon. Member of Parliament',
-    house: 'Lok Sabha',
-    term: '18th Lok Sabha',
-    constituency: 'Patna Sahib',
-    state: 'Bihar',
-    district: 'Patna',
-  };
+  const mp = data?.mp || {};
   const kpis = data?.kpis;
   const flaggedWorks = data?.flaggedWorks || [];
 

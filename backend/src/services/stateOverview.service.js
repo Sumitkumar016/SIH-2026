@@ -72,6 +72,7 @@ export async function getStateOverview(stateId) {
     }
 
     if (
+      w.status !== "Recommended" &&
       w.current_risk_score &&
       (w.current_risk_score.risk_level === "Medium" || w.current_risk_score.risk_level === "High")
     ) {
@@ -85,7 +86,8 @@ export async function getStateOverview(stateId) {
   }
 
   const totalDistrictsCovered = coveredDistrictIds.size;
-  const totalSanctionedCr = Number((totalSanctionedAmount / 100).toFixed(1));
+  // Convert from Rupees to Crores (/ 10,000,000)
+  const totalSanctionedCr = Number((totalSanctionedAmount / 10000000).toFixed(2));
 
   const completionRate =
     totalSanctionedWorks > 0
@@ -132,6 +134,7 @@ export async function getStateOverview(stateId) {
       if (w.status === "Completed") dCompleted += 1;
 
       if (
+        w.status !== "Recommended" &&
         w.current_risk_score &&
         (w.current_risk_score.risk_level === "Medium" || w.current_risk_score.risk_level === "High")
       ) {
@@ -144,7 +147,8 @@ export async function getStateOverview(stateId) {
       }
     }
 
-    const sanctionedCr = Number((dSanctionedAmount / 100).toFixed(1));
+    // Convert from Rupees to Crores (/ 10,000,000)
+    const sanctionedCr = Number((dSanctionedAmount / 10000000).toFixed(2));
     const dCompRate =
       dTotalWorks > 0 ? Number(((dCompleted / dTotalWorks) * 100).toFixed(1)) : 0;
     const dAvgRiskScore = dScoredCount > 0 ? Math.round(dRiskSum / dScoredCount) : 0;
@@ -309,7 +313,7 @@ export async function getDistrictSummary(stateId, districtName) {
     if (rLevel === "Medium") medium += 1;
     if (rLevel === "Low") low += 1;
 
-    if (rLevel === "Medium" || rLevel === "High") {
+    if (w.status !== "Recommended" && (rLevel === "Medium" || rLevel === "High")) {
       flaggedCount += 1;
     }
 
@@ -319,7 +323,8 @@ export async function getDistrictSummary(stateId, districtName) {
     }
   }
 
-  const sanctionedCr = Number((totalSanctionedAmount / 100).toFixed(1));
+  // Convert from Rupees to Crores (/ 10,000,000)
+  const sanctionedCr = Number((totalSanctionedAmount / 10000000).toFixed(2));
   const completionRate =
     totalWorks > 0 ? Number(((completed / totalWorks) * 100).toFixed(1)) : 0;
   const avgRiskScore = scoredCount > 0 ? Math.round(totalRiskScoreSum / scoredCount) : 0;

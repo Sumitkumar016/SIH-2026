@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { getMockResponse, getRoleInitialGreeting } from '../../api/chatbotApi';
+import { getAssistantResponse, getRoleInitialGreeting } from '../../api/chatbotApi';
 
 /**
  * ChatbotWidget Component
@@ -90,7 +90,7 @@ export default function ChatbotWidget() {
     setIsTyping(true);
 
     try {
-      const replyText = await getMockResponse(text, currentRole);
+      const replyText = await getAssistantResponse(text, currentRole);
       const botMessage = {
         id: `bot-${Date.now()}`,
         sender: 'bot',

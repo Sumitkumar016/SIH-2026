@@ -11,6 +11,8 @@ import {
   Filter,
   CheckCircle2,
   Info,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import Sparkline from '../components/common/Sparkline';
 import SearchBox from '../components/common/SearchBox';
@@ -26,6 +28,8 @@ import { mpladsService } from '../api/mpladsService';
 export default function PredictiveForecastPage() {
   const { onOpenWorkDetail } = useOutletContext();
   const [watchlist, setWatchlist] = useState([]);
+  const [availableCategories, setAvailableCategories] = useState([]);
+  const [availableStates, setAvailableStates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -36,38 +40,69 @@ export default function PredictiveForecastPage() {
     category: 'All',
   });
 
-  // Sorting
+  // Sorting & Pagination State
   const [sortField, setSortField] = useState('riskDelta');
   const [sortDirection, setSortDirection] = useState('desc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const pageSize = 15;
 
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const res = await mpladsService.getPredictiveWatchlist({
-        search: searchQuery,
-        ...filters,
-      });
-      setWatchlist(res.data || []);
-    } catch (err) {
-      console.error('Failed to load predictive forecast:', err);
-      setError(err?.message || 'Failed to retrieve predictive risk watchlist.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Reset to page 1 on filter or search changes
   useEffect(() => {
-    loadData();
+    setCurrentPage(1);
   }, [searchQuery, filters]);
 
-  // Client-side Sorting
+  useEffect(() => {
+    let active = true;
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const res = await mpladsService.getPredictiveWatchlist({
+          search: searchQuery,
+          ...filters,
+          page: currentPage,
+          limit: pageSize,
+        });
+        if (!active) return;
+        const incoming = res.data || [];
+        setWatchlist(incoming);
+        setTotalCount(res.pagination?.total ?? res.total ?? incoming.length);
+        setTotalPages(res.pagination?.totalPages ?? Math.max(1, Math.ceil((res.total || incoming.length) / pageSize)));
+
+        if (incoming.length > 0) {
+          setAvailableCategories((prev) => {
+            const set = new Set([...prev, ...incoming.map((w) => w.category).filter(Boolean)]);
+            return Array.from(set).sort();
+          });
+          setAvailableStates((prev) => {
+            const set = new Set([...prev, ...incoming.map((w) => w.state).filter(Boolean)]);
+            return Array.from(set).sort();
+          });
+        }
+      } catch (err) {
+        if (!active) return;
+        console.error('Failed to load predictive forecast:', err);
+        setError(err?.message || 'Failed to retrieve predictive risk watchlist.');
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    loadData();
+    return () => {
+      active = false;
+    };
+  }, [searchQuery, filters, currentPage]);
+
+  // Sorting
   const sortedWatchlist = useMemo(() => {
     return [...watchlist].sort((a, b) => {
       let valA, valB;
       if (sortField === 'riskDelta') {
-        valA = parseInt(a.riskDeltaPercent.replace(/[^0-9]/g, ''), 10);
-        valB = parseInt(b.riskDeltaPercent.replace(/[^0-9]/g, ''), 10);
+        valA = parseInt(a.riskDeltaPercent?.replace(/[^0-9]/g, '') || '0', 10);
+        valB = parseInt(b.riskDeltaPercent?.replace(/[^0-9]/g, '') || '0', 10);
       } else if (sortField === 'days') {
         valA = a.daysUntilPredictedThreshold;
         valB = b.daysUntilPredictedThreshold;
@@ -128,7 +163,7 @@ export default function PredictiveForecastPage() {
           <div className="bg-white/80 backdrop-blur-xs border border-indigo-100 rounded-xl p-3 flex items-center gap-4 text-xs font-mono self-start md:self-auto">
             <div>
               <span className="text-slate-400 block text-[10px] uppercase font-bold">Watchlist Volume</span>
-              <span className="text-base font-extrabold text-[#0F1419]">{watchlist.length} Works</span>
+              <span className="text-base font-extrabold text-[#0F1419]">{totalCount} Works</span>
             </div>
             <div className="h-6 w-px bg-indigo-100" />
             <div>
@@ -153,6 +188,8 @@ export default function PredictiveForecastPage() {
             setSearchQuery('');
             setFilters({ state: 'All', category: 'All' });
           }}
+          availableStates={availableStates}
+          availableCategories={availableCategories}
           showRiskLevel={false}
           showStatus={false}
           showDateRange={false}
@@ -357,15 +394,44 @@ export default function PredictiveForecastPage() {
           </table>
         </div>
 
-        {/* Informational Callout Bar */}
-        <div className="p-3 bg-[#F7F9F9] border-t border-[#EFF3F4] flex items-center justify-between text-xs text-slate-500">
+        {/* Informational Callout Bar & Pagination */}
+        <div className="p-3 bg-[#F7F9F9] border-t border-[#EFF3F4] flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
           <div className="flex items-center gap-1.5">
             <Info className="w-4 h-4 text-[#1D9BF0]" />
             <span>
               Predictions generated via gradient boosting regression trained on 5 years of historical MPLADS disbursement milestones.
             </span>
           </div>
-          <span className="font-mono text-[11px]">Model Confidence: 94.2%</span>
+
+          <div className="flex items-center gap-3">
+            <span className="font-mono text-[11px] font-semibold text-slate-700">
+              Showing {totalCount > 0 ? (currentPage - 1) * pageSize + 1 : 0} to {Math.min(currentPage * pageSize, totalCount)} of {totalCount} Works
+            </span>
+
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage <= 1}
+                  className="p-1 rounded border border-[#EFF3F4] bg-white text-slate-600 disabled:opacity-40"
+                  title="Previous page"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+                <span className="font-mono text-[11px]">
+                  {currentPage}/{totalPages}
+                </span>
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage >= totalPages}
+                  className="p-1 rounded border border-[#EFF3F4] bg-white text-slate-600 disabled:opacity-40"
+                  title="Next page"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

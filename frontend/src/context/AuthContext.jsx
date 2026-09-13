@@ -60,9 +60,11 @@ export function AuthProvider({ children }) {
             sessionStorage.setItem('mplads_auth_user', JSON.stringify(enriched));
           } catch {}
         })
-        .catch(() => {
-          // Token is invalid/expired
-          logout();
+        .catch((err) => {
+          // Only clear session if token is definitively invalid/unauthorized
+          if (err?.status === 401) {
+            logout();
+          }
         });
     }
   }, []);

@@ -15,9 +15,13 @@ export default function DashboardLayout() {
 
   useEffect(() => {
     async function loadAlerts() {
-      const data = await mpladsService.getNationalOverviewMetrics();
-      if (data && data.recentAlerts) {
-        setAlerts(data.recentAlerts);
+      try {
+        const data = await mpladsService.getOverviewAlerts();
+        if (data && data.recentAlerts) {
+          setAlerts(data.recentAlerts);
+        }
+      } catch (err) {
+        console.error('Failed to load navbar alerts:', err);
       }
     }
     loadAlerts();

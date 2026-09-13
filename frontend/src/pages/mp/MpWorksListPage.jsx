@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import {
   ExternalLink,
@@ -7,6 +7,8 @@ import {
   ShieldCheck,
   Calendar,
   Layers,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import RiskBadge from '../../components/common/RiskBadge';
 import SearchBox from '../../components/common/SearchBox';
@@ -22,6 +24,7 @@ import { mpApi } from '../../api/mpApi';
 export default function MpWorksListPage() {
   const { onOpenWorkDetail } = useOutletContext();
   const [works, setWorks] = useState([]);
+  const [availableCategories, setAvailableCategories] = useState([]);
   const [mpProfile, setMpProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -34,46 +37,60 @@ export default function MpWorksListPage() {
     riskLevel: 'All',
   });
 
-  // Sorting
+  // Sorting & Pagination State
   const [sortField, setSortField] = useState('recommendedDate');
   const [sortDirection, setSortDirection] = useState('desc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const pageSize = 10;
 
-  const loadWorks = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const res = await mpApi.getMyWorks({
-        search: searchQuery,
-        ...filters,
-      });
-      setWorks(res.data || []);
-      setMpProfile(res.mp);
-    } catch (err) {
-      console.error('Failed to load MP works list:', err);
-      setError(err?.message || 'Failed to retrieve constituency works register.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Reset to page 1 on filter or search changes
   useEffect(() => {
-    loadWorks();
+    setCurrentPage(1);
   }, [searchQuery, filters]);
 
-  // Client-side Sorting
-  const sortedWorks = useMemo(() => {
-    return [...works].sort((a, b) => {
-      let valA = a[sortField];
-      let valB = b[sortField];
+  useEffect(() => {
+    let active = true;
+    const loadWorks = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const res = await mpApi.getMyWorks({
+          search: searchQuery,
+          ...filters,
+          page: currentPage,
+          limit: pageSize,
+          sortField,
+          sortDirection,
+        });
+        if (!active) return;
+        const incoming = res.data || [];
+        setWorks(incoming);
+        setTotalCount(res.pagination?.total ?? res.total ?? incoming.length);
+        setTotalPages(res.pagination?.totalPages ?? Math.max(1, Math.ceil((res.total || incoming.length) / pageSize)));
 
-      if (typeof valA === 'string') valA = valA.toLowerCase();
-      if (typeof valB === 'string') valB = valB.toLowerCase();
+        if (incoming.length > 0) {
+          setAvailableCategories((prev) => {
+            const set = new Set([...prev, ...incoming.map((w) => w.category).filter(Boolean)]);
+            return Array.from(set).sort();
+          });
+        }
+        setMpProfile(res.mp);
+      } catch (err) {
+        if (!active) return;
+        console.error('Failed to load MP works list:', err);
+        setError(err?.message || 'Failed to retrieve constituency works register.');
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
 
-      if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
-      if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
-      return 0;
-    });
-  }, [works, sortField, sortDirection]);
+    loadWorks();
+    return () => {
+      active = false;
+    };
+  }, [searchQuery, filters, currentPage, sortField, sortDirection]);
 
   const handleSort = (field) => {
     if (sortField === field) {
@@ -82,6 +99,7 @@ export default function MpWorksListPage() {
       setSortField(field);
       setSortDirection('desc');
     }
+    setCurrentPage(1);
   };
 
   const handleFilterChange = (key, value) => {
@@ -95,6 +113,7 @@ export default function MpWorksListPage() {
       category: 'All',
       riskLevel: 'All',
     });
+    setCurrentPage(1);
   };
 
   return (
@@ -113,7 +132,7 @@ export default function MpWorksListPage() {
 
         <div className="flex items-center gap-2 text-xs font-mono bg-white border border-[#EFF3F4] px-3 py-1.5 rounded-xl shadow-xs self-start sm:self-auto">
           <span className="text-slate-400">Total Portfolio:</span>
-          <span className="font-bold text-[#0F1419]">{works.length} Works</span>
+          <span className="font-bold text-[#0F1419]">{totalCount} Works</span>
         </div>
       </div>
 
@@ -128,9 +147,10 @@ export default function MpWorksListPage() {
           filters={filters}
           onFilterChange={handleFilterChange}
           onReset={handleResetFilters}
+          showState={false}
           showDistrict={false}
           showDateRange={false}
-          availableStates={[]} // Hides state dropdown since it's single MP
+          availableCategories={availableCategories}
         />
       </div>
 
@@ -233,7 +253,7 @@ export default function MpWorksListPage() {
                     <td className="py-4 px-4 text-center"><div className="h-6 bg-slate-200 rounded-full w-14 mx-auto" /></td>
                   </tr>
                 ))
-              ) : sortedWorks.length === 0 ? (
+              ) : works.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-8">
                     <EmptyState
@@ -246,7 +266,7 @@ export default function MpWorksListPage() {
                   </td>
                 </tr>
               ) : (
-                sortedWorks.map((w) => (
+                works.map((w) => (
                   <tr
                     key={w.workId}
                     onClick={() => onOpenWorkDetail(w)}
@@ -316,14 +336,41 @@ export default function MpWorksListPage() {
           </table>
         </div>
 
-        {/* Footer */}
-        <div className="px-4 py-3 bg-[#F7F9F9] border-t border-[#EFF3F4] flex items-center justify-between text-xs text-slate-500">
-          <span>
-            Click on any row to view full project breakdown & submit official MP clarifications.
-          </span>
-          <span className="font-mono font-medium">
-            Showing {sortedWorks.length} of {works.length} works
-          </span>
+        {/* Footer with True Server-Side Pagination */}
+        <div className="px-4 py-3 bg-[#F7F9F9] border-t border-[#EFF3F4] flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+          <div>
+            Showing{' '}
+            <span className="font-bold text-[#0F1419]">
+              {totalCount > 0 ? (currentPage - 1) * pageSize + 1 : 0}
+            </span>{' '}
+            to{' '}
+            <span className="font-bold text-[#0F1419]">
+              {Math.min(currentPage * pageSize, totalCount)}
+            </span>{' '}
+            of <span className="font-bold text-[#0F1419]">{totalCount}</span> works
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+              className="p-1.5 rounded-lg border border-[#EFF3F4] bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              title="Previous page"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="px-2 font-mono font-medium">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              className="p-1.5 rounded-lg border border-[#EFF3F4] bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              title="Next page"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 
