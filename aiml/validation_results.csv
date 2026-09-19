@@ -1,0 +1,8 @@
+scenario,model,pct_flagged_medium_plus,pct_flagged_high
+cost_spike,fraud,100.0,19.0
+missing_image_only,fraud,11.5,0.0
+vendor_monopoly,fraud,100.0,5.0
+fund_diversion,fraud,100.0,100.0
+funds_exhausted_stalled,fraud,100.0,2.5
+combined_severe_fraud,fraud,100.0,100.0
+long_stagnation,inefficiency,100.0,100.0
